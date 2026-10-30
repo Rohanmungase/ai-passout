@@ -4,6 +4,7 @@ import multer from 'multer';
 import path from 'path';
 import fs from 'fs';
 import { fileURLToPath } from 'url';
+import { evaluateGeometrics } from './services/cvDiagramService.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -163,6 +164,34 @@ app.post('/api/ocr-extract', upload.single('image'), (req, res) => {
       timestamp: new Date().toISOString()
     });
   } catch (err) {
+    res.status(500).json({ success: false, error: err.message });
+  }
+});
+
+/**
+ * Offline OpenCV Geometric Diagram Evaluator
+ */
+app.post('/api/evaluate-diagram-cv', upload.single('image'), async (req, res) => {
+  try {
+    const file = req.file;
+    const title = req.body.title || 'General Sketch';
+    if (!file) {
+      return res.status(400).json({ success: false, error: 'No image uploaded' });
+    }
+
+    console.log(`[API /api/evaluate-diagram-cv] Running Computer Vision Diagram Evaluation on: ${file.filename}`);
+    
+    // Call the OpenCV service
+    const result = await evaluateGeometrics(file.path, title);
+    
+    // Clean up temporary file
+    if (fs.existsSync(file.path)) {
+      fs.unlinkSync(file.path);
+    }
+
+    res.json(result);
+  } catch (err) {
+    console.error('[OpenCV Endpoint Error]', err);
     res.status(500).json({ success: false, error: err.message });
   }
 });

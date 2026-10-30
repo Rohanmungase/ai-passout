@@ -40,29 +40,76 @@ export function useOMR() {
   /** Extract and load Answer Key directly from an Answer Key Image File */
   const loadAnswerKeyFromImage = useCallback(async (imageFile) => {
     try {
-      toast.info('Scanning Answer Key image...');
-      const extractedKeyMap = await extractAnswersFromImage(imageFile, true);
+      toast.info('Scanning Sample Answer Key image...');
+      const extractedKeyMap = await extractAnswersFromImage(imageFile);
+
       const newKey = DEFAULT_ANSWER_KEY.map(q => ({
         ...q,
         answer: extractedKeyMap[q.qNo] || q.answer,
       }));
       setAnswerKey(newKey);
       dispatch({ type: 'SET_OMR_ANSWER_KEY', payload: newKey });
-      toast.success(`Master Answer Key extracted from image "${imageFile.name}"!`);
+      toast.success(`Master Answer Key auto-filled from "${imageFile.name}"!`);
       return newKey;
     } catch (err) {
-      toast.error('Failed to extract answer key from image.');
+      toast.error('Failed to extract answer key from sample sheet.');
       return null;
     }
+  }, [dispatch, toast]);
+
+  /** Select and apply a saved answer key from teacher repository */
+  const selectSavedAnswerKey = useCallback((savedKey) => {
+    if (!savedKey) return;
+    const targetAnswers = savedKey.answers || DEFAULT_ANSWER_KEY;
+    setAnswerKey(targetAnswers);
+    dispatch({ type: 'SET_OMR_ANSWER_KEY', payload: targetAnswers });
+    toast.success(`Loaded Answer Key: "${savedKey.title}"`);
+  }, [dispatch, toast]);
+
+  /** Save current answer key into teacher repository */
+  const saveAnswerKey = useCallback((title, subject = 'Computer Science', setCode = 'Set A', previewUrl = null) => {
+    if (!title || !title.trim()) {
+      toast.error('Please enter a title for the Answer Key.');
+      return null;
+    }
+    const cleanTitle = title.trim();
+    const finalTitle = setCode && !cleanTitle.toLowerCase().includes(setCode.toLowerCase())
+      ? `${cleanTitle} (${setCode})`
+      : cleanTitle;
+
+    const newKeyObj = {
+      id: `key-${Date.now()}`,
+      title: finalTitle,
+      subject: subject.trim() || 'General Subject',
+      setCode: setCode || 'Set A',
+      totalQuestions: answerKey.length,
+      answers: answerKey,
+      previewUrl: previewUrl || null,
+      created: new Date().toISOString(),
+      author: state.user?.name || 'Teacher / Evaluator'
+    };
+    dispatch({ type: 'SAVE_ANSWER_KEY', payload: newKeyObj });
+    toast.success(`Answer Key "${newKeyObj.title}" saved to Teacher Repository!`);
+    return newKeyObj;
+  }, [answerKey, dispatch, state.user, toast]);
+
+  /** Delete an answer key from teacher repository */
+  const deleteAnswerKey = useCallback((id) => {
+    dispatch({ type: 'DELETE_ANSWER_KEY', payload: id });
+    toast.info('Answer Key removed from Teacher Repository.');
   }, [dispatch, toast]);
 
   return {
     isProcessing,
     answerKey,
+    savedAnswerKeys: state.savedAnswerKeys || [],
     omrResult: state.omrResult,
     runOMREvaluation,
     updateAnswerKeyChoice,
     loadAnswerKeyFromImage,
+    selectSavedAnswerKey,
+    saveAnswerKey,
+    deleteAnswerKey,
     setAnswerKey,
   };
 }

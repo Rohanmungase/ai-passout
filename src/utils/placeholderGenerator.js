@@ -20,23 +20,23 @@ export function getHistoryPagesSVG() {
     <text x="88" y="248" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">demand for complete independence was later adopted by Congress in 1929.</text>
 
     <!-- Q.2 -->
-    <text x="15" y="298" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Q.2.</text>
-    <text x="88" y="298" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827" text-decoration="underline">Explain the main features of the Non-Cooperation Movement.</text>
-    <text x="15" y="323" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Ans:</text>
-    <text x="88" y="323" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(1) Launched by Mahatma Gandhi in 1920.</text>
-    <text x="88" y="348" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(2) It was a response to the Rowlatt Act and Jallianwala Bagh massacre.</text>
-    <text x="88" y="373" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(3) People were asked to boycott foreign goods, government schools, law courts and titles.</text>
-    <text x="88" y="398" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(4) It aimed to achieve Swaraj through non-violent means.</text>
-    <text x="88" y="423" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(5) Movement was withdrawn in 1922 after Chauri Chaura incident.</text>
+    <text x="15" y="520" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Q.2.</text>
+    <text x="88" y="520" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827" text-decoration="underline">Explain the main features of the Non-Cooperation Movement.</text>
+    <text x="15" y="555" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Ans:</text>
+    <text x="88" y="555" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(1) Launched by Mahatma Gandhi in 1920.</text>
+    <text x="88" y="585" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(2) It was a response to the Rowlatt Act and Jallianwala Bagh massacre.</text>
+    <text x="88" y="615" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(3) People were asked to boycott foreign goods, government schools, law courts and titles.</text>
+    <text x="88" y="645" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(4) It aimed to achieve Swaraj through non-violent means.</text>
+    <text x="88" y="675" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">(5) Movement was withdrawn in 1922 after Chauri Chaura incident.</text>
 
     <!-- Q.3 -->
-    <text x="15" y="473" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Q.3.</text>
-    <text x="88" y="473" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827" text-decoration="underline">Write a note on the contribution of Dr. B. R. Ambedkar.</text>
-    <text x="15" y="498" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Ans:</text>
-    <text x="88" y="498" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">Dr. B. R. Ambedkar was a great social reformer, jurist and chairman of Drafting Committee</text>
-    <text x="88" y="523" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">of Indian Constitution. He worked for rights of downtrodden and fought against untouchability.</text>
-    <text x="88" y="548" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">He believed in education, equality and social justice. His contribution in framing Constitution</text>
-    <text x="88" y="573" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">of India is invaluable.</text>
+    <text x="15" y="790" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Q.3.</text>
+    <text x="88" y="790" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827" text-decoration="underline">Write a note on the contribution of Dr. B. R. Ambedkar.</text>
+    <text x="15" y="825" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#111827">Ans:</text>
+    <text x="88" y="825" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">Dr. B. R. Ambedkar was a great social reformer, jurist and chairman of Drafting Committee</text>
+    <text x="88" y="855" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">of Indian Constitution. He worked for rights of downtrodden and fought against untouchability.</text>
+    <text x="88" y="885" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">He believed in education, equality and social justice. His contribution in framing Constitution</text>
+    <text x="88" y="915" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" fill="#1f2937">of India is invaluable.</text>
   </svg>`;
 
   const page2 = `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="1100" viewBox="0 0 700 1100">
@@ -194,13 +194,61 @@ export function getSciencePagesSVG() {
   ];
 }
 
-export function getAnswerSheetPlaceholder(name = 'Student', rollNo = 'CS101') {
-  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="600" height="800" viewBox="0 0 600 800">
-    <rect width="600" height="800" fill="#ffffff" rx="16"/>
-    <rect x="30" y="30" width="540" height="110" fill="#f8fafc" rx="12" stroke="#e2e8f0" stroke-width="2"/>
-    <text x="50" y="65" font-family="system-ui, -apple-system, sans-serif" font-size="20" font-weight="bold" fill="#0f172a">ANSWER SHEET - EVALUATION COPY</text>
-    <text x="50" y="95" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#2563eb">Student: ${name}</text>
-    <text x="350" y="95" font-family="system-ui, -apple-system, sans-serif" font-size="14" font-weight="600" fill="#475569">Roll No: ${rollNo}</text>
+export function getAnswerSheetPlaceholder(name = 'Student', rollNo = 'CS101', subject = 'History & Social Science') {
+  const svg = `<svg xmlns="http://www.w3.org/2000/svg" width="700" height="980" viewBox="0 0 700 980">
+    <rect width="700" height="980" fill="#fcfcfc" rx="10"/>
+    
+    <!-- Realistic Notebook Margins and Lines -->
+    <line x1="75" y1="0" x2="75" y2="980" stroke="#ef4444" stroke-width="1.5" opacity="0.8"/>
+    <line x1="79" y1="0" x2="79" y2="980" stroke="#ef4444" stroke-width="1.0" opacity="0.6"/>
+    ${Array.from({ length: 37 }).map((_, i) => `<line x1="0" y1="${55 + i * 25}" x2="700" y2="${55 + i * 25}" stroke="#cbd5e1" stroke-width="0.9" opacity="0.75"/>`).join('')}
+
+    <!-- Student Header Header Block -->
+    <rect x="85" y="10" width="580" height="40" fill="#f1f5f9" rx="6" stroke="#cbd5e1" stroke-width="1"/>
+    <text x="95" y="27" font-family="'Segoe UI', sans-serif" font-size="12" font-weight="bold" fill="#1e293b">Name: ${name}  |  Roll No: ${rollNo}</text>
+    <text x="95" y="42" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="600" fill="#475569">Subject: ${subject}  |  Semester IV  |  Handwritten Answer Copy</text>
+
+    <!-- Q.1 -->
+    <text x="15" y="78" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#0f172a">Q.1</text>
+    <text x="88" y="78" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" font-weight="bold" fill="#1e293b" text-decoration="underline">Discuss the causes and consequences of the Revolt of 1857.</text>
+    
+    <text x="15" y="103" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" font-weight="bold" fill="#1e3a8a">Ans:</text>
+    <text x="88" y="103" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">The Revolt of 1857 was a major uprising against British East India Company rule.</text>
+    <text x="88" y="128" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">It began at Meerut on 10th May 1857 and quickly spread across North and Central India.</text>
+    <text x="88" y="153" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">Causes :</text>
+    <text x="88" y="178" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">1) Political : Doctrine of Lapse introduced by Lord Dalhousie annexed Jhansi, Satara &amp; Nagpur.</text>
+    <text x="88" y="203" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">2) Economic : High revenue tax, exploitation of Indian artisans and decline of handicrafts.</text>
+    <text x="88" y="228" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">3) Social : Interference in Indian customs like abolition of Sati and widow remarriage.</text>
+    <text x="88" y="253" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">4) Immediate Cause : Introduction of Enfield rifles greased with cow and pig fat.</text>
+    
+    <text x="88" y="278" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">Consequences :</text>
+    <text x="88" y="303" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">1) End of East India Company rule; direct administration transferred to British Crown (1858).</text>
+    <text x="88" y="328" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">2) Governor-General title changed to Viceroy of India (Lord Canning first Viceroy).</text>
+    <text x="88" y="353" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">3) Reorganization of British Indian Army and promise not to annex states further.</text>
+
+    <!-- Q.2 -->
+    <text x="15" y="403" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#0f172a">Q.2</text>
+    <text x="88" y="403" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" font-weight="bold" fill="#1e293b" text-decoration="underline">Explain the main causes of the Revolt of 1857.</text>
+    
+    <text x="15" y="428" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" font-weight="bold" fill="#1e3a8a">Ans:</text>
+    <text x="88" y="428" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">The main causes were political annexation policies, discrimination against Indian soldiers,</text>
+    <text x="88" y="453" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">heavy land revenues imposed on farmers, and religious discontent among the troops.</text>
+    <text x="88" y="478" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">Mangal Pandey revolted at Barrackpore which triggered the uprising across cantonments.</text>
+
+    <!-- Q.3 -->
+    <text x="15" y="528" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="15" font-weight="bold" fill="#0f172a">Q.3</text>
+    <text x="88" y="528" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14.5" font-weight="bold" fill="#1e293b" text-decoration="underline">Write the important consequences of the Revolt of 1857.</text>
+    
+    <text x="15" y="553" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" font-weight="bold" fill="#1e3a8a">Ans:</text>
+    <text x="88" y="553" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">1) The rule of the East India Company was terminated by the Government of India Act 1858.</text>
+    <text x="88" y="578" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">2) Queen Victoria's Proclamation guaranteed freedom of religion and equal protection of law.</text>
+    <text x="88" y="603" font-family="'Kalam', 'Caveat', 'Segoe Print', 'Architects Daughter', cursive" font-size="14" fill="#1e3a8a">3) The revolt laid the emotional foundation for the modern Indian National Freedom Movement.</text>
+
+    <!-- Teacher signature & verification stamp -->
+    <rect x="470" y="870" width="190" height="65" fill="#f8fafc" rx="8" stroke="#059669" stroke-width="1.5" stroke-dasharray="4 2"/>
+    <text x="480" y="890" font-family="'Segoe UI', sans-serif" font-size="11" font-weight="bold" fill="#059669">✓ AI EVALUATED &amp; VERIFIED</text>
+    <text x="480" y="906" font-family="'Segoe UI', sans-serif" font-size="10" fill="#0f172a">Marks: 28.5 / 30  |  Grade A+</text>
+    <text x="480" y="922" font-family="'Segoe UI', sans-serif" font-size="9" fill="#64748b">Evaluated via Gemini AI Engine</text>
   </svg>`;
   return `data:image/svg+xml;utf8,${encodeURIComponent(svg)}`;
 }

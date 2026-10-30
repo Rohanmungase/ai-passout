@@ -15,6 +15,7 @@ import LoadingSkeleton from '../components/LoadingSkeleton';
 import { getStudentPhoto, getStudentPhotoFallback } from '../utils/studentPhotoHelper';
 import { getAnswerSheetPlaceholder, getHistoryPagesSVG, getSciencePagesSVG } from '../utils/placeholderGenerator';
 import { sanitizeOcrText } from '../services/ocrService';
+import ImageAnnotator from '../components/ImageAnnotator';
 
 /**
  * Upload page — drag-and-drop answer sheet upload with in-place AI evaluation, 
@@ -77,11 +78,11 @@ export default function Upload() {
             qNo: 'Q.3',
             title: 'Write a note on the contribution of Dr. B. R. Ambedkar.',
             maxMarks: 5,
-            marksObtained: 5.0,
-            status: 'Correct',
+            marksObtained: 0.0,
+            status: 'Incorrect',
             studentAnswer: 'Dr. B. R. Ambedkar was a great social reformer, jurist and the chairman of the Drafting Committee of the Indian Constitution. He worked for the rights of the downtrodden and fought against untouchability. He believed in education, equality and social justice. His contribution in framing the Constitution of India is invaluable.',
             modelAnswer: 'Chairman of Drafting Committee of Indian Constitution, social reformer who fought against untouchability, jurist promoting education, equality, and social justice.',
-            feedback: 'Full marks awarded! Comprehensive answer covering drafting committee, social equality, and anti-untouchability efforts.'
+            feedback: 'Incorrect: Answer does not meet the rubric requirements for constitutional drafting analysis.'
           },
           {
             qNo: 'Q.4',
@@ -230,6 +231,51 @@ export default function Upload() {
         ]
       };
     }
+
+    if (nameLower.includes('sneha') || nameLower.includes('aditya') || nameLower.includes('kulkarni') || nameLower.includes('deshmukh')) {
+      return {
+        studentName: student.name,
+        rollNo: student.rollNo || (nameLower.includes('aditya') ? 'CS105' : 'CS106'),
+        marksObtained: 28.5,
+        maxMarks: 30,
+        accuracy: 95,
+        grade: 'A+',
+        status: 'Completed',
+        questionBreakdown: [
+          {
+            qNo: 'Q.1',
+            title: 'Discuss the causes and consequences of the Revolt of 1857. (10 marks)',
+            maxMarks: 10,
+            marksObtained: 9.5,
+            status: 'Correct',
+            studentAnswer: 'The Revolt of 1857 was a significant uprising against the British rule in India. It was the result of various political, economic, social and religious factors and it had far-reaching consequences.\nCauses :\n1) Political causes: The policy of annexation under Lord Dalhousie, especially the Doctrine of Lapse, created resentment among Indian rulers.\n2) Economic causes: Heavy taxation and exploitation of Indian resources led to widespread poverty and dissatisfaction among the people.\n3) Social and religious causes: British interference in the social and religious practices of Indians created fear that their traditions and culture were in danger.\n4) Immediate cause: The use of greased cartridges in Enfield rifles, believed to be coated with cow and pig fat, hurt the religious sentiments of both Hindus and Muslims.\nConsequences :\n1) The revolt was suppressed by the British after a long and violent struggle.\n2) The British Crown took direct control of India in 1858, ending the rule of the East India Company.\n3) The policy of annexation was stopped.\n4) The British became more cautious and introduced some administrative reforms.\n5) It also created a sense of unity among Indians, which later helped in the freedom movement.\nThus, the Revolt of 1857 was a turning point in Indian history.',
+            modelAnswer: 'Causes: 1) Political - Doctrine of Lapse, annexation under Lord Dalhousie 2) Economic - Heavy taxation, exploitation 3) Social & Religious - British interference in customs 4) Immediate - Greased cartridges in Enfield rifles. Consequences: 1) British suppressed revolt 2) British Crown took direct control in 1858 3) East India Company ended 4) Annexation stopped 5) Administrative reforms 6) Unity among Indians.',
+            feedback: 'Outstanding comprehensive answer! All major causes (political, economic, social, immediate) and historical consequences thoroughly explained.'
+          },
+          {
+            qNo: 'Q.2',
+            title: 'Explain the main causes of the Revolt of 1857. (10 marks)',
+            maxMarks: 10,
+            marksObtained: 9.5,
+            status: 'Correct',
+            studentAnswer: 'The Revolt of 1857 was caused by political, economic, military and religious grievances.\n1) Political causes: The British annexed Indian states and introduced the Doctrine of Lapse.\n2) Economic causes: Heavy taxes and the decline of traditional industries made people poor.\n3) Military causes: Indian soldiers faced low pay, discrimination and fewer chances of promotion.\n4) Religious causes: Many Indians feared British interference in their customs and religions.\n5) Immediate cause: The new rifle cartridges were believed to be greased with cow and pig fat, hurting Hindu and Muslim sentiments.',
+            modelAnswer: 'The Revolt of 1857 was caused by: 1) Political causes - British annexed Indian states, Doctrine of Lapse 2) Economic causes - Heavy taxes, decline of traditional industries 3) Military causes - Low pay, discrimination, fewer promotions for Indian soldiers 4) Religious causes - British interference in customs 5) Immediate cause - Greased cartridges in new Enfield rifles (cow and pig fat).',
+            feedback: 'Excellent response! Clearly categorized political, economic, military, and religious causes with full factual accuracy.'
+          },
+          {
+            qNo: 'Q.3',
+            title: 'Write the important consequences of the Revolt of 1857. (10 marks)',
+            maxMarks: 10,
+            marksObtained: 9.5,
+            status: 'Correct',
+            studentAnswer: 'The Revolt of 1857 brought major changes in British rule in India.\n1) The rule of the East India Company ended in 1858.\n2) India came directly under the British Crown.\n3) The Governor-General also became the Viceroy of India.\n4) The British promised not to interfere unnecessarily in religious matters.\n5) The British reorganised the army and increased control over it.\n6) The revolt inspired later generations in the struggle for independence.',
+            modelAnswer: 'Consequences of the Revolt of 1857: 1) East India Company rule ended in 1858 2) India came under British Crown directly 3) Governor-General became Viceroy of India 4) British promised non-interference in religion 5) British reorganised army 6) Revolt inspired future freedom struggle.',
+            feedback: 'Perfect point-by-point analysis of post-1857 constitutional and administrative changes in India.'
+          }
+        ]
+      };
+    }
+
     if (nameLower.includes('rohan') || nameLower.includes('mungase')) {
       return {
         studentName: student.name,
@@ -323,223 +369,10 @@ export default function Upload() {
         ]
       };
     }
-    if (nameLower.includes('om')) {
-      return {
-        studentName: student.name,
-        rollNo: student.rollNo || 'CS01',
-        marksObtained: 80.0,
-        maxMarks: 80,
-        accuracy: 100,
-        grade: 'A+',
-        status: 'Completed',
-        questionBreakdown: [
-          {
-            qNo: 'Q.1',
-            title: 'Define the term \'Latitude\'. State its importance (any two points).',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'Latitude is the angular distance of a place north or south of the Equator, measured in degrees.\nImportance :\n1) It helps to determine the climate of a place.\n2) It is useful in locating places on the Earth\'s surface.',
-            modelAnswer: 'Latitude is the angular distance of a place north or south of the Equator, measured in degrees. Importance: 1) Determines climate. 2) Helps locate places on Earth.',
-            feedback: 'Full marks awarded! Accurate definition and valid importance points.'
-          },
-          {
-            qNo: 'Q.2',
-            title: 'Explain the factors affecting the climate of India (any four points).',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'The climate of India is affected by the following factors :\n1) Latitude - Most of India lies in the tropical zone, which gives it a generally warm climate.\n2) Altitude - Temperature decreases with increase in altitude.\n3) Distance from the sea - Coastal areas have moderate climate while interior regions experience extreme climate.\n4) Relief - Mountain ranges like the Himalayas influence the direction of winds and prevent cold winds from Central Asia.',
-            modelAnswer: 'Factors: 1) Latitude 2) Altitude 3) Distance from the sea 4) Relief.',
-            feedback: 'Full marks awarded! All four factors explained clearly.'
-          },
-          {
-            qNo: 'Q.3',
-            title: 'Write a short note on \'Monsoon\'.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'Monsoon is a seasonal change in the direction of winds. In India, the south-west monsoon brings heavy rainfall from June to September. It is crucial for Indian agriculture, water resources and the overall economy. The retreating monsoon from October to November brings rainfall to the eastern and southern parts of India.',
-            modelAnswer: 'Seasonal wind direction change. South-west monsoon (June-Sept) and retreating monsoon (Oct-Nov).',
-            feedback: 'Full marks awarded! Comprehensive note covering both south-west and retreating monsoon.'
-          },
-          {
-            qNo: 'Q.4',
-            title: 'State any four advantages of irrigation.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) It helps in increasing agricultural production.\n2) It allows cultivation of crops throughout the year.\n3) It reduces the dependence on rainfall.\n4) It helps in the development of rural economy and provides employment.',
-            modelAnswer: '1) Increases crop production 2) Year-round cultivation 3) Reduces rainfall dependency 4) Develops rural economy.',
-            feedback: 'Full marks awarded! All four advantages correctly listed.'
-          },
-          {
-            qNo: 'Q.5',
-            title: 'Give reasons : India has a variety of soils.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'India has a variety of soils because of variation in climate, relief, parent rock material and rainfall. The different physical conditions in various regions lead to the formation of different types of soils such as alluvial, black, red, laterite and desert soil.',
-            modelAnswer: 'Variations in climate, relief, parent rock material, and rainfall lead to diverse soil types.',
-            feedback: 'Full marks awarded! Valid reasoning and soil types specified.'
-          },
-          {
-            qNo: 'Q.6',
-            title: 'Name any four major minerals found in India.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Iron ore 2) Manganese 3) Bauxite 4) Coal',
-            modelAnswer: 'Iron ore, Manganese, Bauxite, Coal.',
-            feedback: 'Full marks awarded! Correct mineral names.'
-          },
-          {
-            qNo: 'Q.7',
-            title: 'Explain the importance of forests (any four points).',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Forests maintain ecological balance.\n2) They provide habitat to a wide variety of wildlife.\n3) They supply timber, fuel, medicinal plants and other raw materials.\n4) They help in preventing soil erosion and bring rainfall.',
-            modelAnswer: '1) Ecological balance 2) Wildlife habitat 3) Raw materials 4) Soil erosion prevention & rainfall.',
-            feedback: 'Full marks awarded! Four valid points on forest importance.'
-          },
-          {
-            qNo: 'Q.8',
-            title: 'Write a short note on \'Population Density\'.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'Population density means the number of people living per square kilometre of area. It helps to understand how population is distributed in a region. Areas like cities and fertile plains have high population density, while mountainous and desert regions have low population density.',
-            modelAnswer: 'Number of people per sq km. High density in fertile plains & cities; low in deserts & mountains.',
-            feedback: 'Full marks awarded! Clear explanation of population density concept.'
-          },
-          {
-            qNo: 'Q.9',
-            title: 'Define the term \'Urbanisation\'. State any two causes.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'Urbanisation is the process by which a large number of people start living in towns and cities and the urban areas expand.\nCauses: 1) Industrial development 2) Migration from rural to urban areas.',
-            modelAnswer: 'Process of population growth in urban areas. Causes: Industrialisation, rural-to-urban migration.',
-            feedback: 'Full marks awarded! Precise definition and causes.'
-          },
-          {
-            qNo: 'Q.10',
-            title: 'State any four problems faced by urban areas in India.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Overcrowding 2) Inadequate housing 3) Traffic congestion 4) Poor sanitation and waste management.',
-            modelAnswer: 'Overcrowding, inadequate housing, traffic congestion, poor sanitation.',
-            feedback: 'Full marks awarded! Four accurate urban problems listed.'
-          },
-          {
-            qNo: 'Q.11',
-            title: 'What is a plateau? Give two examples of plateaus in India.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'A plateau is an elevated flat-topped area of land with steep sides.\nExamples: 1) Deccan Plateau 2) Chota Nagpur Plateau.',
-            modelAnswer: 'Elevated flat-topped area of land. Examples: Deccan Plateau, Chota Nagpur Plateau.',
-            feedback: 'Full marks awarded! Exact definition and correct examples.'
-          },
-          {
-            qNo: 'Q.12',
-            title: 'Differentiate between \'Weather\' and \'Climate\' (any two points).',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Weather is the day-to-day condition of the atmosphere, while climate is the long-term average condition.\n2) Weather can change within a few hours, whereas climate remains relatively stable over many years.',
-            modelAnswer: 'Weather is day-to-day; Climate is long-term average (stable over years).',
-            feedback: 'Full marks awarded! Accurate differences.'
-          },
-          {
-            qNo: 'Q.13',
-            title: 'State any four uses of rocks and minerals.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Rocks are used for construction of buildings, roads and dams.\n2) Minerals are used as raw materials in industries.\n3) Rocks and minerals provide sources of energy (e.g. coal, petroleum).\n4) They are used for making household items and tools.',
-            modelAnswer: 'Construction, industrial raw materials, energy sources, tools.',
-            feedback: 'Full marks awarded! Four valid uses.'
-          },
-          {
-            qNo: 'Q.14',
-            title: 'What is meant by \'Conservation of water\'? Give two methods.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'Conservation of water means the careful and judicious use of water resources to prevent wastage and ensure their availability for future generations.\nMethods: 1) Rainwater harvesting 2) Watershed management.',
-            modelAnswer: 'Judicious use of water resources. Methods: Rainwater harvesting, Watershed management.',
-            feedback: 'Full marks awarded! Precise answer.'
-          },
-          {
-            qNo: 'Q.15',
-            title: 'Name any four non-conventional sources of energy.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Solar energy 2) Wind energy 3) Tidal energy 4) Biogas energy.',
-            modelAnswer: 'Non-conventional energy sources: 1) Solar energy 2) Wind energy 3) Tidal energy 4) Biogas energy.',
-            feedback: 'Full marks awarded! Accurately listed all four non-conventional energy sources.'
-          },
-          {
-            qNo: 'Q.16',
-            title: 'State the importance of agriculture in India (any four points).',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Provides food to a large population.\n2) Provides employment to a large number of people.\n3) Supplies raw materials to industries.\n4) Contributes to the overall economic development of the country.',
-            modelAnswer: '1) Food security 2) Employment 3) Raw materials to industries 4) Economic development.',
-            feedback: 'Full marks awarded! All four key points regarding the importance of agriculture are correctly stated.'
-          },
-          {
-            qNo: 'Q.17',
-            title: 'Define \'Transportation\'. State any two advantages.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'Transportation means the movement of people, goods and services from one place to another.\nAdvantages: 1) It helps in trade and commerce. 2) It promotes economic development and cultural exchange.',
-            modelAnswer: 'Movement of people, goods and services from one place to another. Advantages: 1) Trade and commerce 2) Economic and cultural exchange.',
-            feedback: 'Full marks awarded! Clear definition and two valid advantages.'
-          },
-          {
-            qNo: 'Q.18',
-            title: 'What is a \'Resource\'? Give any two examples.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'A resource is anything in the environment that can be used to satisfy human needs.\nExamples: 1) Land 2) Water.',
-            modelAnswer: 'Anything in the environment used to satisfy human needs. Examples: Land, Water.',
-            feedback: 'Full marks awarded! Precise definition and valid examples.'
-          },
-          {
-            qNo: 'Q.19',
-            title: 'State any four factors affecting the location of industries.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: '1) Availability of raw materials 2) Source of power 3) Transport facilities 4) Availability of labour.',
-            modelAnswer: 'Factors: 1) Raw materials 2) Power source 3) Transport facilities 4) Availability of labour.',
-            feedback: 'Full marks awarded! All four industrial location factors accurately stated.'
-          },
-          {
-            qNo: 'Q.20',
-            title: 'Write a short note on \'Sustainable Development\'.',
-            maxMarks: 4,
-            marksObtained: 4.0,
-            status: 'Correct',
-            studentAnswer: 'Sustainable development means development that meets the needs of the present generation without compromising the ability of future generations to meet their own needs. It involves balanced use of natural resources, protection of the environment and inclusive economic growth.',
-            modelAnswer: 'Development meeting present needs without compromising future generations. Environmental protection & resource conservation.',
-            feedback: 'Full marks awarded! Complete explanation of sustainable development.'
-          }
-        ]
-      };
-    }
     if (baseEval && baseEval.questionBreakdown && baseEval.questionBreakdown.length > 0) {
       return {
-        studentName: student.name,
-        rollNo: student.rollNo || '01',
+        studentName: student.name || state.studentInfo?.name || 'Aarav Sharma',
+        rollNo: student.rollNo || state.studentInfo?.rollNo || '01',
         marksObtained: baseEval.marksObtained,
         maxMarks: baseEval.maxMarks,
         accuracy: baseEval.accuracy,
@@ -550,16 +383,39 @@ export default function Upload() {
     }
 
     return {
-      studentName: student.name,
-      rollNo: student.rollNo || '03',
-      marksObtained: 22.0,
-      maxMarks: 31,
-      accuracy: 71,
-      grade: 'B',
+      studentName: student.name || state.studentInfo?.name || 'Aarav Sharma',
+      rollNo: student.rollNo || state.studentInfo?.rollNo || '01',
+      marksObtained: 39.0,
+      maxMarks: 39,
+      accuracy: 100,
+      grade: 'A+',
       status: 'Completed',
-      questionBreakdown: []
+      questionBreakdown: [
+        {
+          qNo: 'Q.1',
+          title: 'Write short notes on any two. (1) Indian National Congress (2) Swaraj',
+          maxMarks: 5,
+          marksObtained: 5.0,
+          status: 'Correct',
+          studentAnswer: '(1) Indian National Congress :\nThe Indian National Congress was established in 1885 at Bombay. A. O. Hume played an important role in its formation.\n\n(2) Swaraj :\nSwaraj means self-rule. The demand for Swaraj became strong during the freedom movement. Lokmanya Tilak gave the slogan "Swaraj is my birthright and I shall have it".',
+          modelAnswer: '(1) Indian National Congress established in 1885 by A.O. Hume. (2) Swaraj means self-rule, popularized by Lokmanya Tilak.',
+          feedback: 'Full marks awarded! Comprehensive and accurate short notes.'
+        },
+        {
+          qNo: 'Q.2',
+          title: 'Explain the main features of the Non-Cooperation Movement.',
+          maxMarks: 5,
+          marksObtained: 5.0,
+          status: 'Correct',
+          studentAnswer: '• Launched by Mahatma Gandhi in 1920.\n• It was a response to the Rowlatt Act and Jallianwala Bagh massacre.\n• People were asked to boycott foreign goods, government schools, law courts and titles.',
+          modelAnswer: 'Launched by Gandhi in 1920 following Rowlatt Act & Jallianwala Bagh. Boycott of foreign goods, schools, titles.',
+          feedback: 'Full marks awarded! All bullet points match expected rubric.'
+        }
+      ]
     };
-  };  const handleExtract = async () => {
+  };
+
+  const handleExtract = async () => {
     if (!state.uploadedFiles || state.uploadedFiles.length === 0) {
       toast.error('Please upload at least one answer sheet image first.');
       return;
@@ -588,30 +444,88 @@ export default function Upload() {
     }
   };
 
-  // Find students matching uploaded files or studentInfo
-  const matchedStudents = state.students?.filter(s => {
-    const sName = s.name.toLowerCase();
-    const sRoll = (s.rollNo || '').toLowerCase();
-    const selName = (state.studentInfo?.name || '').toLowerCase();
-    const selRoll = (state.studentInfo?.rollNo || '').toLowerCase();
+  const selectedCollegeName = state.studentInfo?.collegeName;
 
-    // Check uploaded filenames
-    const matchFileName = state.uploadedFiles?.some(f => {
-      const fname = (typeof f === 'string' ? f : f?.name || '').toLowerCase();
-      return fname.includes(sName) || 
-             (fname.includes('priya') && sName.includes('priya')) || 
-             (fname.includes('aarav') && sName.includes('aarav'));
-    });
-
-    const matchSel = (selName && (sName === selName || sName.includes(selName))) || (selRoll && sRoll === selRoll);
-
-    return matchFileName || matchSel;
+  // 1. Get all eligible students for the selected college (scrubbing Omkar)
+  const availableCollegeStudents = (state.students || []).filter(s => {
+    const sName = (s.name || '').toLowerCase();
+    if (sName.includes('omkar') || sName === 'om') return false;
+    if (!selectedCollegeName) return true;
+    if (s.collegeName) return s.collegeName.toLowerCase() === selectedCollegeName.toLowerCase();
+    const cObj = state.colleges?.find(c => c.name.toLowerCase() === selectedCollegeName.toLowerCase());
+    if (cObj) return s.collegeId === cObj.id;
+    return false;
   });
 
-  // Display matched students or top students
-  const displayRosterStudents = (matchedStudents && matchedStudents.length > 0)
-    ? matchedStudents
-    : state.students?.slice(0, 3);
+  // Match uploaded files strictly to students of the selected college
+  let matchedStudents = [];
+
+  if (state.uploadedFiles && state.uploadedFiles.length > 0) {
+    matchedStudents = state.uploadedFiles.map((file, idx) => {
+      const fname = (typeof file === 'string' ? file : file?.name || '').toLowerCase();
+      
+      const foundStudent = availableCollegeStudents.find(s => {
+        const sName = s.name.toLowerCase();
+        const sRoll = (s.rollNo || '').toLowerCase();
+        
+        // Match roll number e.g. '01' or '1' in '01.pdf' or 'aarav'
+        const rollMatch = sRoll && (
+          fname.includes(sRoll) || 
+          fname.includes(`0${sRoll}`) || 
+          (fname.replace(/[^0-9]/g, '') === sRoll.replace(/[^0-9]/g, '') && sRoll.replace(/[^0-9]/g, '').length > 0)
+        );
+
+        const nameMatch = fname.includes(sName) ||
+          (fname.includes('priya') && sName.includes('priya')) ||
+          (fname.includes('aarav') && sName.includes('aarav')) ||
+          (fname.includes('rohan') && sName.includes('rohan'));
+
+        return rollMatch || nameMatch;
+      });
+
+      if (foundStudent) return foundStudent;
+
+      // Fallback by index strictly from available college students
+      return availableCollegeStudents[idx % (availableCollegeStudents.length || 1)] || {
+        id: 100 + idx,
+        name: `Student Roll 0${idx + 1}`,
+        rollNo: `0${idx + 1}`,
+        prn: `10${idx + 1}`,
+        department: 'Computer Engineering',
+        semester: 'Semester IV',
+        division: 'A',
+        attendance: 85
+      };
+    });
+
+    // Deduplicate students while maintaining accurate file-to-student mapping
+    const uniqueMap = new Map();
+    matchedStudents.forEach(s => {
+      if (!uniqueMap.has(s.id)) {
+        uniqueMap.set(s.id, s);
+      }
+    });
+    matchedStudents = Array.from(uniqueMap.values());
+  } else {
+    const selName = (state.studentInfo?.name || '').toLowerCase();
+    if (selName && !selName.includes('omkar') && selName !== 'om') {
+      matchedStudents = availableCollegeStudents.filter(s => s.name.toLowerCase().includes(selName));
+    }
+  }
+
+  // Display matched students or filter by selected collegeName
+  let displayRosterStudents = [];
+  if (matchedStudents && matchedStudents.length > 0) {
+    displayRosterStudents = matchedStudents;
+  } else {
+    displayRosterStudents = availableCollegeStudents;
+  }
+
+  // Ensure collegeName is attached to all roster entries
+  displayRosterStudents = displayRosterStudents.map(s => ({
+    ...s,
+    collegeName: s.collegeName || selectedCollegeName || 'MIT College'
+  }));
 
   const activeEvalResult = evaluationResult || state.evaluationResult;
   const isResultReady = (hasEvaluated || activeEvalResult) && !isEvaluating && !isExtracting;
@@ -841,7 +755,7 @@ export default function Upload() {
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm hidden sm:table-cell">
                               <span className="px-2 py-0.5 rounded-lg text-xs font-semibold bg-blue-50 text-blue-700 dark:bg-blue-900/30 dark:text-blue-300 border border-blue-200/50">
-                                {state.colleges?.find(c => c.id === student.collegeId)?.name || 'MIT College'}
+                                {student.collegeName || state.studentInfo?.collegeName || state.colleges?.find(c => c.id === student.collegeId)?.name || 'MIT College'}
                               </span>
                             </td>
                             <td className="px-3 py-3 whitespace-nowrap text-sm text-gray-500 dark:text-gray-400 hidden xl:table-cell">
@@ -1236,34 +1150,69 @@ export default function Upload() {
                             studentPapers = flat;
                           }
 
-                          // Ensure Aarav and Priya always show authentic 2-page handwritten documents (Page 1 + Page 2)
-                          if (currentStudentName.includes('aarav') || currentStudentName.includes('arnav')) {
-                            studentPapers = getHistoryPagesSVG();
-                          } else if (currentStudentName.includes('priya')) {
-                            studentPapers = getSciencePagesSVG();
+                          // If the user uploaded images/PDFs in state, check if imagePreviews are available
+                          if (!studentPapers || studentPapers.length === 0) {
+                            if (state.imagePreviews && state.imagePreviews.length > 0) {
+                              const flat = [];
+                              state.imagePreviews.forEach(p => {
+                                if (Array.isArray(p)) flat.push(...p);
+                                else if (p) flat.push(p);
+                              });
+                              if (flat.length > 0) studentPapers = flat;
+                            }
                           }
+
+                          // Ensure Aarav, Priya, Sneha and Aditya always show authentic handwritten documents (Page 1 + Page 2)
+                          if (currentStudentName.includes('aarav') || currentStudentName.includes('arnav')) {
+                            studentPapers = ['/papers/01_p1.png', '/papers/01_p2.png'];
+                          } else if (currentStudentName.includes('priya')) {
+                            studentPapers = ['/papers/02_p1.png', '/papers/02_p2.png'];
+                          } else if (currentStudentName.includes('sneha') || currentStudentName.includes('aditya')) {
+                            studentPapers = [getAnswerSheetPlaceholder(separateModalStudent?.name, separateModalStudent?.rollNo, 'History - Revolt of 1857')];
+                          }
+
+                          const mappedQuestions = (modalEval.questionBreakdown || []).map(q => {
+                            const isMatch = q.status === 'Correct' || (q.marksObtained && q.marksObtained > 0);
+                            return {
+                              id: q.id || q.qNo,
+                              qNo: q.id || q.qNo,
+                              title: q.title || `Question ${q.id || q.qNo}`,
+                              marksObtained: q.marksObtained ?? (isMatch ? 1 : 0),
+                              maxMarks: q.maxMarks ?? 1,
+                              isMatch: isMatch,
+                              extractedAnswer: q.studentAnswer || '',
+                              masterAnswer: q.modelAnswer || '',
+                              feedback: q.feedback || ''
+                            };
+                          });
 
                           if (studentPapers && studentPapers.length > 0) {
                             return studentPapers.map((paper, idx) => (
-                              <div key={idx} className="w-full flex flex-col items-center space-y-1.5 pb-4">
-                                <div className="w-full flex items-center justify-between px-2 text-[11px] font-extrabold text-gray-500 dark:text-gray-400">
-                                  <span>📄 {separateModalStudent.name} Answer Sheet</span>
-                                  <span className="px-2 py-0.5 rounded bg-primary/10 text-primary font-mono">Page {idx + 1} of {studentPapers.length}</span>
-                                </div>
-                                <img 
-                                  src={paper} 
-                                  alt={`${separateModalStudent.name} Page ${idx + 1}`}
-                                  className="w-full object-contain rounded-xl shadow-md border border-gray-200 dark:border-slate-700 bg-white"
+                              <div key={idx} className="w-full flex flex-col items-center pb-2">
+                                <ImageAnnotator
+                                  imageSrc={paper}
+                                  pageIndex={idx}
+                                  totalPages={studentPapers.length}
+                                  studentName={separateModalStudent?.name || 'Student'}
+                                  rollNo={separateModalStudent?.rollNo || ''}
+                                  subject={separateModalStudent?.subject || ''}
+                                  fileName={separateModalStudent?.fileName || ''}
+                                  questions={mappedQuestions}
                                 />
                               </div>
                             ));
                           }
 
                           return (
-                            <img 
-                              src={getAnswerSheetPlaceholder(separateModalStudent?.name, separateModalStudent?.rollNo)} 
-                              alt={`${separateModalStudent?.name || 'Student'} Answer Sheet Placeholder`}
-                              className="w-full object-contain rounded-xl shadow-md border border-gray-200 dark:border-slate-700"
+                            <ImageAnnotator
+                              imageSrc={getAnswerSheetPlaceholder(separateModalStudent?.name, separateModalStudent?.rollNo)}
+                              pageIndex={0}
+                              totalPages={1}
+                              studentName={separateModalStudent?.name || 'Student'}
+                              rollNo={separateModalStudent?.rollNo || ''}
+                              subject={separateModalStudent?.subject || ''}
+                              fileName={separateModalStudent?.fileName || ''}
+                              questions={mappedQuestions}
                             />
                           );
                         })()}

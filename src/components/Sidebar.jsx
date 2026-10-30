@@ -13,6 +13,7 @@ import {
   ChevronRight,
   Menu,
   X,
+  LogOut,
 } from 'lucide-react';
 import { useAppContext } from '../context/AppContext';
 import { useState } from 'react';
@@ -113,12 +114,22 @@ export default function Sidebar() {
         })}
       </nav>
 
-      {/* Footer */}
-      {(!collapsed || isMobile) && (
-        <div className="p-4 border-t border-gray-100 dark:border-slate-800">
-          <p className="text-xs text-gray-400 dark:text-gray-500">v1.0.0 • AI Evaluator</p>
-        </div>
-      )}
+      {/* Footer / Logout */}
+      <div className={`p-4 border-t border-gray-100 dark:border-slate-800 flex flex-col gap-2 ${collapsed && !isMobile ? 'items-center' : ''}`}>
+        <button
+          onClick={() => {
+            dispatch({ type: 'LOGOUT' });
+          }}
+          className={`flex items-center gap-3 px-3 py-2.5 rounded-xl text-sm font-medium transition-all duration-200 text-red-600 dark:text-red-400 hover:bg-red-50 dark:hover:bg-red-900/20 w-full ${collapsed && !isMobile ? 'justify-center' : ''}`}
+          title={collapsed && !isMobile ? 'Logout' : undefined}
+        >
+          <LogOut className="w-5 h-5 shrink-0" />
+          {(!collapsed || isMobile) && <span>Logout</span>}
+        </button>
+        {(!collapsed || isMobile) && (
+          <p className="text-xs text-center text-gray-400 dark:text-gray-500 mt-2">v1.0.0 • AI Evaluator</p>
+        )}
+      </div>
     </div>
   );
 

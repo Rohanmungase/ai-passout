@@ -18,14 +18,22 @@ export default function UploadBox() {
   const [isDragging, setIsDragging] = useState(false);
 
   const handleFiles = useCallback(async (files) => {
-    const validFiles = [];
-    const validPreviews = [];
+    const fileArray = Array.from(files);
+    if (fileArray.length === 0) return;
 
-    for (const file of Array.from(files)) {
+    const validFilesList = fileArray.filter(file => {
       const validation = validateUploadFile(file);
       if (!validation.valid) {
         toast.error(`"${file.name}": ${validation.error}`);
-      } else {
+        return false;
+      }
+      return true;
+    });
+
+    if (validFilesList.length === 0) return;
+
+    const processedResults = await Promise.all(
+      validFilesList.map(async (file) => {
         const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
         try {
           let base64DataUrl;
@@ -38,24 +46,24 @@ export default function UploadBox() {
               reader.readAsDataURL(file);
             });
           }
-          validFiles.push(file);
-          validPreviews.push(base64DataUrl);
+          return { file, preview: base64DataUrl };
         } catch (err) {
-          // Fallback if PDF parsing fails
           const base64DataUrl = await new Promise((resolve) => {
             const reader = new FileReader();
             reader.onload = (e) => resolve(e.target.result);
             reader.readAsDataURL(file);
           });
-          validFiles.push(file);
-          validPreviews.push(base64DataUrl);
+          return { file, preview: base64DataUrl };
         }
-      }
-    }
+      })
+    );
+
+    const validFiles = processedResults.map(r => r.file);
+    const validPreviews = processedResults.map(r => r.preview);
 
     if (validFiles.length > 0) {
       dispatch({
-        type: 'ADD_UPLOADED_FILES',
+        type: 'SET_UPLOADED_FILES',
         payload: { files: validFiles, previews: validPreviews },
       });
       // Clear previous extraction result so new upload extracts fresh content

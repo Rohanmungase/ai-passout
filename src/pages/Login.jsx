@@ -212,13 +212,6 @@ export default function Login() {
               </button>
             </div>
             
-            <div className="mt-4 text-center">
-              <p className="text-xs text-gray-500 dark:text-gray-400">
-                Demo Credentials:<br/>
-                Email: <span className="font-semibold text-gray-700 dark:text-gray-300">teacher@school.com</span><br/>
-                Password: <span className="font-semibold text-gray-700 dark:text-gray-300">Teacher@123</span>
-              </p>
-            </div>
           </form>
         </div>
       </motion.div>

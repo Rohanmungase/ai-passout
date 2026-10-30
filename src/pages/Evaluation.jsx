@@ -10,7 +10,7 @@ import { useAppContext } from '../context/AppContext';
 import { useEvaluation } from '../hooks/useEvaluation';
 import { useToast } from '../hooks/useToast';
 import { validateEvaluationForm } from '../utils/validators';
-import { evaluateQuestionWiseRubric } from '../services/aiEvaluationService';
+import { evaluateQuestionWiseRubric, evaluateDiagramLocalCV } from '../services/aiEvaluationService';
 import { parseQATextIntoQuestions } from '../services/ocrService';
 import AnalyticsCard from '../components/AnalyticsCard';
 import CircularProgress from '../components/CircularProgress';
@@ -59,6 +59,7 @@ export default function Evaluation() {
   }, [state.extractedText]);
 
   const [isRubricEvaluating, setIsRubricEvaluating] = useState(false);
+  const [isCvEvaluating, setIsCvEvaluating] = useState(false);
 
   const handleAddQuestion = () => {
     const nextNum = questions.length + 1;
@@ -158,6 +159,42 @@ export default function Evaluation() {
       toast.error('Question-wise rubric evaluation failed.');
     } finally {
       setIsRubricEvaluating(false);
+    }
+  };
+
+  const handleCVEvaluate = async (qId, qTitle) => {
+    const file = state.uploadedFiles && state.uploadedFiles[0];
+    if (!file) {
+      toast.error('No physical image file found to run OpenCV analysis. Please upload an answer sheet.');
+      return;
+    }
+    
+    setIsCvEvaluating(qId);
+    try {
+      const cvResult = await evaluateDiagramLocalCV(file, qTitle);
+      if (cvResult && cvResult.success) {
+        toast.success(`OpenCV Geometric Trace Complete! Found ${cvResult.detectedLineCount} line structures.`);
+        
+        // Update the evaluationResult diagram state
+        const updatedResult = { ...evaluationResult };
+        const qIndex = updatedResult.questionBreakdown.findIndex(q => q.id === qId);
+        if (qIndex > -1) {
+          updatedResult.questionBreakdown[qIndex].diagramEvaluation = {
+            ...updatedResult.questionBreakdown[qIndex].diagramEvaluation,
+            diagramType: cvResult.diagramType || "CV Geometry",
+            overallDiagramScore: cvResult.structuralScore,
+            structuralScore: cvResult.structuralScore,
+            diagramFeedback: cvResult.cvFeedback
+          };
+          dispatch({ type: 'SET_EVALUATION_RESULT', payload: updatedResult });
+        }
+      } else {
+        toast.error('CV Error: ' + (cvResult ? cvResult.error : 'Network fail'));
+      }
+    } catch (err) {
+      toast.error('Local CV analysis failed.');
+    } finally {
+      setIsCvEvaluating(false);
     }
   };
 
@@ -538,6 +575,25 @@ export default function Evaluation() {
                               ))}
                             </div>
                           )}
+
+                          {/* OpenCV Integration Button & Feedback */}
+                          <div className="mt-3 text-right">
+                             <button
+                               onClick={() => handleCVEvaluate(q.id, q.title)}
+                               disabled={isCvEvaluating === q.id}
+                               className="text-xs px-3 py-1.5 rounded-lg bg-teal-500/20 text-teal-200 border border-teal-500/30 hover:bg-teal-500/40 transition flex items-center gap-1.5 ml-auto cursor-pointer font-bold disabled:opacity-50"
+                             >
+                               {isCvEvaluating === q.id ? (
+                                 <><div className="w-3 h-3 border-2 border-teal-300 border-t-transparent rounded-full animate-spin" /> Analyzing Geometry...</>
+                               ) : '🔍 Verify Geometry via OpenCV'}
+                             </button>
+                             {q.diagramEvaluation.diagramFeedback && (
+                                <p className="text-teal-100 mt-2 text-[11px] text-left border-t border-purple-500/30 pt-2 font-mono">
+                                  <strong className="text-teal-300 font-bold">OpenCV Output:</strong> {q.diagramEvaluation.diagramFeedback}
+                                </p>
+                             )}
+                          </div>
+
                         </div>
                       )}
                     </div>

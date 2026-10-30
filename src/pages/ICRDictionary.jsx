@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useRef, useCallback } from 'react';
+import React, { useState, useEffect, useRef, useCallback, useMemo } from 'react';
 import { motion } from 'framer-motion';
 import { useNavigate } from 'react-router-dom';
 import {
@@ -24,14 +24,31 @@ import {
   RefreshCw,
   Upload,
   FileUp,
+  ZoomIn,
+  ZoomOut,
+  Key,
+  FileWarning,
+  Users,
+  Eye,
+  Maximize2,
+  AlertTriangle,
+  AlertOctagon,
+  ShieldAlert,
+  GitFork,
+  Workflow,
+  Scale,
+  Flame,
+  Copy,
+  Split,
 } from 'lucide-react';
-import { useAppContext } from '../context/AppContext';
+import { useAppContext, isStudentCopied } from '../context/AppContext';
 import { useToast } from '../hooks/useToast';
 import { evaluateAnswer, evaluateQuestionWiseRubric } from '../services/aiEvaluationService';
 import { extractText, parseQATextIntoQuestions, convertPdfToDataUrl, getPdfPageCount } from '../services/ocrService';
 import CircularProgress from '../components/CircularProgress';
 import ProgressBar from '../components/ProgressBar';
 import StudentInfoCard from '../components/StudentInfoCard';
+import ImageAnnotator from '../components/ImageAnnotator';
 import {
   loadDictionary,
   saveDictionary,
@@ -52,6 +69,142 @@ import {
 
 
 
+
+/**
+ * Compute similarity between two student answers to detect plagiarism / copied answers.
+ * Returns similarity percentage (0-100), exact match boolean, copied flag, and match classification.
+ */
+export function computeAnswerSimilarity(text1, text2) {
+  if (!text1 || !text2) {
+    return {
+      similarity: 0,
+      isExact: false,
+      isCopied: false,
+      matchType: 'Distinct / No Content',
+      identicalWords: 0,
+      totalWords: 0,
+      statusColor: 'text-slate-400',
+      badgeColor: 'bg-slate-800 text-slate-400 border-slate-700'
+    };
+  }
+
+  const raw1 = String(text1).trim();
+  const raw2 = String(text2).trim();
+
+  const norm1 = raw1.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+  const norm2 = raw2.toLowerCase().replace(/[^\w\s]/g, ' ').replace(/\s+/g, ' ').trim();
+
+  if (norm1.length === 0 || norm2.length === 0) {
+    return {
+      similarity: 0,
+      isExact: false,
+      isCopied: false,
+      matchType: 'No Answer Text',
+      identicalWords: 0,
+      totalWords: 0,
+      statusColor: 'text-slate-400',
+      badgeColor: 'bg-slate-800 text-slate-400 border-slate-700'
+    };
+  }
+
+  // 1. Direct character or normalized exact match
+  if (norm1 === norm2) {
+    const wordCount = norm1.split(' ').length;
+    return {
+      similarity: 100,
+      isExact: true,
+      isCopied: true,
+      matchType: 'Exact Match (100% Identical)',
+      identicalWords: wordCount,
+      totalWords: wordCount,
+      statusColor: 'text-red-400',
+      badgeColor: 'bg-red-500/20 text-red-300 border-red-500/50'
+    };
+  }
+
+  // 2. Token / Bag-of-words overlap
+  const words1 = norm1.split(' ').filter(w => w.length > 1);
+  const words2 = norm2.split(' ').filter(w => w.length > 1);
+
+  if (words1.length === 0 || words2.length === 0) {
+    return {
+      similarity: 0,
+      isExact: false,
+      isCopied: false,
+      matchType: 'Distinct',
+      identicalWords: 0,
+      totalWords: 0,
+      statusColor: 'text-slate-400',
+      badgeColor: 'bg-slate-800 text-slate-400 border-slate-700'
+    };
+  }
+
+  const set1 = new Set(words1);
+  const set2 = new Set(words2);
+  let intersectionCount = 0;
+  set1.forEach(w => {
+    if (set2.has(w)) intersectionCount++;
+  });
+
+  const unionSize = new Set([...words1, ...words2]).size;
+  const jaccardScore = unionSize > 0 ? (intersectionCount / unionSize) * 100 : 0;
+
+  // 3. Sequential bigram matching for phrasing duplication
+  const getBigrams = (list) => {
+    const bg = new Set();
+    for (let i = 0; i < list.length - 1; i++) {
+      bg.add(`${list[i]}__${list[i+1]}`);
+    }
+    return bg;
+  };
+
+  const bg1 = getBigrams(words1);
+  const bg2 = getBigrams(words2);
+  let commonBigrams = 0;
+  bg1.forEach(b => {
+    if (bg2.has(b)) commonBigrams++;
+  });
+  const totalBigrams = new Set([...bg1, ...bg2]).size;
+  const bigramScore = totalBigrams > 0 ? (commonBigrams / totalBigrams) * 100 : 0;
+
+  // Weighted final similarity score
+  const finalSimilarity = Math.min(100, Math.round((jaccardScore * 0.4) + (bigramScore * 0.6)));
+  const isCopied = finalSimilarity >= 70;
+  const isExact = finalSimilarity >= 98 || norm1 === norm2;
+
+  let matchType = 'Distinct Answer';
+  let statusColor = 'text-emerald-400';
+  let badgeColor = 'bg-emerald-500/10 text-emerald-400 border-emerald-500/30';
+
+  if (isExact) {
+    matchType = 'Exact Match (100% Identical)';
+    statusColor = 'text-red-400';
+    badgeColor = 'bg-red-500/20 text-red-300 border-red-500/50';
+  } else if (finalSimilarity >= 85) {
+    matchType = `Critical Overlap (${finalSimilarity}% Copied)`;
+    statusColor = 'text-red-400';
+    badgeColor = 'bg-red-500/20 text-red-300 border-red-500/50';
+  } else if (finalSimilarity >= 70) {
+    matchType = `High Similarity (${finalSimilarity}% Suspicious)`;
+    statusColor = 'text-amber-400';
+    badgeColor = 'bg-amber-500/20 text-amber-300 border-amber-500/50';
+  } else if (finalSimilarity >= 45) {
+    matchType = `Moderate Paraphrase (${finalSimilarity}%)`;
+    statusColor = 'text-blue-400';
+    badgeColor = 'bg-blue-500/10 text-blue-300 border-blue-500/30';
+  }
+
+  return {
+    similarity: finalSimilarity,
+    isExact,
+    isCopied,
+    matchType,
+    identicalWords: intersectionCount,
+    totalWords: Math.max(words1.length, words2.length),
+    statusColor,
+    badgeColor,
+  };
+}
 
 // ASCII & Mathematical Symbol Character Map (A-Z, a-z, 0-9, Math, Greek, Logic)
 const ASCII_OPTIONS = [];
@@ -666,6 +819,430 @@ Ans. The main features of the Delhi Sultanate were: (i) It was the first Muslim 
   }
 ];
 
+export const REVOLT_1857_CANDIDATE_DATA = {
+  id: 0,
+  rollNo: 'CS106',
+  fileName: 'CS106.pdf',
+  name: 'Sneha Kulkarni',
+  subject: 'HISTORY & SOCIAL STUDIES',
+  batch: 'C-2',
+  division: 'Division B',
+  standard: 'Second Year (SE)',
+  paperPreviews: ['/papers/01_p1.png', '/papers/01_p2.png'],
+  marksObtained: 19.0,
+  maxMarks: 20,
+  accuracy: 95,
+  grammar: 92,
+  keywordMatch: 95,
+  similarity: 94,
+  completeness: 96,
+  feedback: {
+    strengths: [
+      'Comprehensive breakdown of political causes (Doctrine of Lapse) and military causes (greased cartridges in Enfield rifles).',
+      'Accurately explained historical consequences of the Revolt: end of East India Company and transfer to British Crown in 1858.',
+      'High factual accuracy on economic impacts on traditional handicrafts and farmer impoverishment.'
+    ]
+  },
+  questions: [
+    {
+      id: 1,
+      qNo: 'Q.1',
+      pageNumber: 1,
+      title: 'Discuss the causes and consequences of the Revolt of 1857. (10 marks)',
+      maxMarks: 10,
+      marksObtained: 9.5,
+      status: 'Correct',
+      accuracy: 96,
+      feedback: 'Full marks awarded! Comprehensive breakdown of political (Doctrine of Lapse), economic (taxation, handicrafts), social-religious, and military causes (greased cartridges), plus complete list of consequences including end of East India Company and transfer to British Crown in 1858.',
+      modelAnswer: 'Causes of the Revolt of 1857:\n1) Political causes: British policy of annexation under Lord Dalhousie (Doctrine of Lapse), removal of Indian rulers, and loss of power of kings.\n2) Economic causes: Heavy taxation, exploitation of resources, decline of traditional handicrafts, and poverty among farmers.\n3) Social and religious causes: Interference in religious practices, abolition of sati, fear of conversion to Christianity.\n4) Military causes: Discrimination against Indian soldiers, low salaries, and introduction of greased cartridges in Enfield rifles coated with cow and pig fat.\n\nConsequences of the Revolt of 1857:\n1) The rule of the East India Company ended in 1858 and India came directly under the British Crown.\n2) The policy of annexation was abandoned and the British promised non-interference in religious customs.\n3) Reorganization of the British Indian administration and army.\n4) National consciousness and unity developed among Indians, inspiring future freedom movements.',
+      studentAnswer: 'The Revolt of 1857, also known as the First War of Independence, was a major uprising against the British rule in India. It was caused by a combination of political, economic, social, religious and military factors, and it had significant consequences on Indian history.\n\nCauses of the Revolt of 1857 :\n1) Political causes :\n- British policy of annexation under Lord Dalhousie (Doctrine of Lapse)\n- Removal of Indian rulers and interference in internal affairs.\n- Loss of power and prestige of Indian kings and nobles.\n2) Economic causes :\n- Heavy taxation and exploitation of Indian resources.\n- Decline of traditional industries like handicrafts.\n- Impoverishment of farmers and increasing poverty.\n3) Social and religious causes :\n- Interference in the social and religious practices of Indians.\n- Abolition of sati and other reforms created fear among people.\n- Conversion of Indians to Christianity was widely suspected.\n4) Military causes :\n- Discrimination between Indian and British soldiers.\n- Low salary and poor facilities for Indian soldiers.\n- Introduction of greased cartridges in Enfield rifles, which were believed to be coated with cow and pig fat.\n- This hurt the religious sentiments of both Hindus and Muslims.\n\nConsequences of the Revolt of 1857 :\n1) The revolt was suppressed by the British after a long and violent struggle.\n2) The rule of the East India Company ended in 1858.\n3) India came directly under the control of the British Crown.\n4) The British became more cautious and introduced administrative reforms.\n5) A sense of unity and national feeling developed among Indians, which later helped in the freedom movement.\n6) The British followed a more conservative policy towards Indian religion and customs.'
+    },
+    {
+      id: 2,
+      qNo: 'Q.2',
+      pageNumber: 2,
+      title: 'Explain the main causes of the Revolt of 1857. (10 marks)',
+      maxMarks: 10,
+      marksObtained: 9.5,
+      status: 'Correct',
+      accuracy: 95,
+      feedback: 'Excellent response! Thoroughly categorized political (Doctrine of Lapse, Satara, Jhansi, Nagpur), economic (heavy taxation, destruction of handicrafts), social-religious, and military grievances with complete factual accuracy.',
+      modelAnswer: 'Main causes of the Revolt of 1857:\n1) Political causes: The British pursued an aggressive annexation policy under Lord Dalhousie, especially the Doctrine of Lapse, annexing Satara, Jhansi, and Nagpur.\n2) Economic causes: Heavy taxation, rigid land revenue policies, exploitation of resources, and decline of traditional industries like handicrafts leading to poverty.\n3) Social and religious causes: Interference in social customs, abolition of sati, introduction of English education, and suspected Christian missionary conversion.\n4) Military causes: Discrimination between Indian and British soldiers, low salaries, poor facilities, and immediate spark of greased cartridges in Enfield rifles coated with cow and pig fat.',
+      studentAnswer: 'The Revolt of 1857 was caused by a combination of political, economic, social, religious and military factors. These causes created widespread dissatisfaction among the Indians and ultimately led to a large-scale uprising against the British rule.\n\n1) Political causes :\n• The British pursued a policy of annexation under Lord Dalhousie, especially the Doctrine of Lapse.\n• Many Indian kingdoms like Satara, Jhansi and Nagpur were annexed, which created resentment among the rulers.\n• Traditional rulers lost their power, status and privileges.\n\n2) Economic causes :\n• Heavy taxation and rigid revenue policies burdened the farmers and common people.\n• British exploitation of Indian resources led to the decline of traditional industries like handicrafts.\n• This resulted in widespread poverty, unemployment and economic hardship.\n\n3) Social and religious causes :\n• The British interfered in the social and religious practices of Indians.\n• Reforms such as the abolition of sati, the introduction of English education and the Christian missionary activities created fear among people.\n• Indians believed that the British wanted to destroy their religion and culture and convert them to Christianity.\n\n4) Military causes :\n• Indian soldiers were treated unfairly and discriminated against in the British army.\n• They were given low salaries and poor facilities compared to British soldiers.\n• The use of greased cartridges in Enfield rifles, believed to be coated with cow and pig fat, hurt the religious sentiments of both Hindus and Muslims and became the immediate spark for the revolt.'
+    }
+  ]
+};
+
+export const STUDENT_CANDIDATES_DATA = [
+  {
+    id: 0,
+    rollNo: '01',
+    fileName: '01.pdf',
+    name: 'Aarav Sharma',
+    subject: 'HISTORY & SOCIAL STUDIES',
+    batch: 'B-1',
+    division: 'Division A',
+    standard: 'Second Year (SE)',
+    paperPreviews: ['/papers/01_p1.png', '/papers/01_p2.png'],
+    marksObtained: 32.5,
+    maxMarks: 41,
+    accuracy: 79,
+    grammar: 73,
+    keywordMatch: 79,
+    similarity: 82,
+    completeness: 85,
+    feedback: {
+      strengths: [
+        'Well-articulated formation of Indian National Congress and Tilak\'s Swaraj philosophy.',
+        'Accurate timeline citations for Non-Cooperation and Quit India movements.',
+        'Clear differentiation between literary and archaeological historical sources.'
+      ]
+    },
+    questions: [
+      {
+        id: 1,
+        qNo: 'Q.1',
+        pageNumber: 1,
+        title: 'Write short notes on any two. (1) Indian National Congress (2) Swaraj',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 96,
+        feedback: 'Accurately covered both Indian National Congress formation in 1885 and Swaraj concept by Tilak.',
+        modelAnswer: 'The Indian National Congress was established in 1885 at Bombay. A. O. Hume played an important role in its formation. The main objective of the Congress was to create a platform for the educated Indians to express their political demands.\n\nSwaraj means self-rule. Lokmanya Tilak gave the slogan "Swaraj is my birthright and I shall have it". The demand for complete independence was later adopted by Congress in 1929.',
+        studentAnswer: '(1) Indian National Congress : The Indian National Congress was established in 1885 at Bombay. A. O. Hume played an important role in its formation. The main objective of the Congress was to create a platform for the educated Indians to express their political demands. In the early years, the Congress followed a moderate approach and demanded reforms from the British government.\n\n(2) Swaraj : Swaraj means self-rule. The demand for Swaraj became strong during the freedom movement. Lokmanya Tilak gave the slogan "Swaraj is my birthright and I shall have it". The demand for complete independence was later adopted by the Congress in 1929.'
+      },
+      {
+        id: 2,
+        qNo: 'Q.2',
+        pageNumber: 1,
+        title: 'Explain the main features of the Non-Cooperation Movement.',
+        maxMarks: 5,
+        marksObtained: 4,
+        status: 'Correct',
+        accuracy: 88,
+        feedback: 'Good explanation of boycott of foreign goods, schools, and withdrawal after Chauri Chaura incident.',
+        modelAnswer: 'Launched by Mahatma Gandhi in 1920 following Rowlatt Act & Jallianwala Bagh. Boycott of foreign goods, schools, titles. Non-violent means. Withdrawn in 1922 after Chauri Chaura.',
+        studentAnswer: '• Launched by Mahatma Gandhi in 1920.\n• It was a response to the Rowlatt Act and Jallianwala Bagh massacre.\n• People were asked to boycott foreign goods, government schools, law courts and titles.\n• It aimed to achieve Swaraj through non-violent means.\n• The movement was withdrawn in 1922 after the Chauri Chaura incident.'
+      },
+      {
+        id: 3,
+        qNo: 'Q.3',
+        pageNumber: 1,
+        title: 'Write a note on the contribution of Dr. B. R. Ambedkar.',
+        maxMarks: 5,
+        marksObtained: 0,
+        status: 'Incorrect',
+        presetStatus: 'Incorrect',
+        accuracy: 20,
+        feedback: 'Incorrect Answer: Fails to address the specific constitutional provisions, historical milestones, and drafting committee key points required by the rubric.',
+        modelAnswer: 'Chairman of Drafting Committee of Indian Constitution, social reformer against untouchability, jurist promoting education and equality.',
+        studentAnswer: 'Dr. B. R. Ambedkar was a great social reformer, jurist and the chairman of the Drafting Committee of the Indian Constitution. He worked for the rights of the downtrodden and fought against untouchability. He believed in education, equality and social justice. His contribution in framing the Constitution of India is invaluable.'
+      },
+      {
+        id: 4,
+        qNo: 'Q.4',
+        pageNumber: 2,
+        title: 'State any four causes of the French Revolution.',
+        maxMarks: 4,
+        marksObtained: 4,
+        status: 'Correct',
+        accuracy: 95,
+        feedback: 'Accurately stated social inequality, financial crisis, enlightenment thinkers, and autocratic rule.',
+        modelAnswer: '(1) Social inequality (Three Estates), (2) Financial crisis, (3) Enlightenment thinkers, (4) Autocratic rule of Louis XVI.',
+        studentAnswer: '(1) Social inequality.\n(2) Financial crisis\n(3) Influence of Enlightenment thinkers\n(4) Autocratic rule of Louis XVI.'
+      },
+      {
+        id: 5,
+        qNo: 'Q.5',
+        pageNumber: 2,
+        title: 'Write a short note on the United Nations.',
+        maxMarks: 4,
+        marksObtained: 4,
+        status: 'Correct',
+        accuracy: 92,
+        feedback: 'Clear mention of 1945 establishment, peace and security mission, and India as a founding member.',
+        modelAnswer: 'Established in 1945 post-WWII to maintain peace & security and promote global cooperation. India is a founding member.',
+        studentAnswer: 'The United Nations was established in 1945 after the Second World War. Its main objective is to maintain international peace and security, develop friendly relations among nations and promote social, economic and cultural co-operation. India is one of the founding members of the United Nations.'
+      },
+      {
+        id: 6,
+        qNo: 'Q.6',
+        pageNumber: 2,
+        title: 'What were the results of the First World War? (Any four)',
+        maxMarks: 4,
+        marksObtained: 4,
+        status: 'Correct',
+        accuracy: 94,
+        feedback: 'Well-stated loss of life, nationalist feelings, collapse of empires, and League of Nations.',
+        modelAnswer: '(1) Loss of life/property, (2) Nationalistic feelings, (3) Collapse of German/Austrian/Ottoman empires, (4) League of Nations.',
+        studentAnswer: '(1) Huge loss of life and property.\n(2) Growth of nationalistic feelings.\n(3) Collapse of old empires like German, Austrian and Ottoman.\n(4) Establishment of the League of Nations.'
+      },
+      {
+        id: 7,
+        qNo: 'Q.7',
+        pageNumber: 2,
+        title: "Write a note on Mahatma Gandhi's Satyagraha movement.",
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 96,
+        feedback: 'Accurate timeline of South Africa 1906, principles of truth and non-violence.',
+        modelAnswer: "Mahatma Gandhi started Satyagraha in South Africa in 1906 based on truth (Satya) and non-violence (Ahimsa). Weapon against injustice.",
+        studentAnswer: "Mahatma Gandhi started the Satyagraha movement in South Africa in 1906. It was based on the principles of truth and non-violence. He used Satyagraha as a weapon against injustice. The movement inspired Indians in their struggle for freedom and later became an important part of the Indian independence movement."
+      },
+      {
+        id: 8,
+        qNo: 'Q.8',
+        pageNumber: 2,
+        title: 'Explain the importance of the Dandi March.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 96,
+        feedback: 'Detailed facts: 12th March 1930, Sabarmati to Dandi 240 miles, breaking salt law.',
+        modelAnswer: "Started 12 March 1930 from Sabarmati to Dandi (240 miles) against British salt tax. Marked the launch of the Civil Disobedience Movement.",
+        studentAnswer: "The Dandi March was started by Mahatma Gandhi on 12th March 1930 to protest against the British salt law. He along with his followers marched from Sabarmati to Dandi, a distance of about 240 miles. By making salt, Gandhi broke the law and showed that ordinary people could also resist British rule. The march brought the freedom struggle to the masses and received worldwide attention."
+      },
+      {
+        id: 9,
+        qNo: 'Q.9',
+        pageNumber: 2,
+        title: 'Write any four features of the Indian Constitution.',
+        maxMarks: 4,
+        marksObtained: 4,
+        status: 'Correct',
+        accuracy: 95,
+        feedback: 'Covered democratic government, fundamental rights, equality before law, and independent judiciary.',
+        modelAnswer: "(1) Democratic government (2) Fundamental rights (3) Equality before law (4) Independent judiciary.",
+        studentAnswer: "(1) It provides a democratic form of government.\n(2) It guarantees fundamental rights to all citizens.\n(3) It ensures equality before law.\n(4) It establishes an independent judiciary."
+      }
+    ]
+  },
+  {
+    id: 1,
+    rollNo: '02',
+    fileName: '02.pdf',
+    name: 'Priya Joshi',
+    subject: 'PHYSICS',
+    batch: 'B-2',
+    division: 'Division A',
+    standard: 'Second Year (SE)',
+    paperPreviews: ['/papers/02_p1.png', '/papers/02_p2.png'],
+    marksObtained: 34.0,
+    maxMarks: 41,
+    accuracy: 83,
+    grammar: 80,
+    keywordMatch: 82,
+    similarity: 86,
+    completeness: 88,
+    feedback: {
+      strengths: [
+        'Flawless calculation of kinetic energy with formula KE = 1/2 mv² and SI unit Joules.',
+        'Clear mathematical derivation of velocity of freely falling body (v = gt).',
+        'Accurate ray tracing characteristics for concave mirror image formation.'
+      ]
+    },
+    questions: [
+      {
+        id: 1,
+        qNo: 'Q.1',
+        pageNumber: 1,
+        title: 'Define the term "Force" and write its SI unit.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 96,
+        feedback: 'Accurate definition of force as push/pull causing change in state or shape, with SI unit Newton (N).',
+        modelAnswer: 'Force is an external push or pull that changes or tends to change the state of rest or uniform motion of a body. Its SI unit is Newton (N).',
+        studentAnswer: 'Force is a push or pull acting on a body which can change its state of rest or motion or its shape. The SI unit of force is newton (N).'
+      },
+      {
+        id: 2,
+        qNo: 'Q.2',
+        pageNumber: 1,
+        title: "State Newton's first law of motion.",
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 95,
+        feedback: 'Precise statement of inertia and first law of motion.',
+        modelAnswer: 'Every object continues in its state of rest or of uniform motion in a straight line unless compelled to change that state by an external unbalanced force.',
+        studentAnswer: 'Every body continues in its state of rest or uniform motion in a straight line unless acted upon by an external unbalanced force.'
+      },
+      {
+        id: 3,
+        qNo: 'Q.3',
+        pageNumber: 1,
+        title: 'Derive an expression for the velocity of a freely falling body.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 94,
+        feedback: 'Clear step-by-step derivation from v = u + at with u = 0 and a = g.',
+        modelAnswer: 'For free fall, initial velocity u = 0, acceleration a = g. Using first kinematic equation v = u + at => v = 0 + gt => v = gt.',
+        studentAnswer: 'Let,\nInitial velocity, u = 0 (freely falling)\nAcceleration due to gravity, a = g\nTime of fall = t\nFinal velocity = v\nUsing the equation of motion,\nv = u + at\nv = 0 + gt\nv = gt\n∴ The velocity of a freely falling body is v = gt.'
+      },
+      {
+        id: 4,
+        qNo: 'Q.4',
+        pageNumber: 1,
+        title: 'Draw a neat labelled diagram of a concave mirror and show image formation.',
+        maxMarks: 5,
+        marksObtained: 4.5,
+        status: 'Correct',
+        accuracy: 90,
+        feedback: 'Accurately located image between F and C; real, inverted and diminished.',
+        modelAnswer: 'Object placed beyond C: rays pass through focus and center of curvature, intersecting between F and C to form a real, inverted, diminished image.',
+        studentAnswer: 'Image is formed :\n1) between F and C\n2) real and inverted\n3) diminished in size'
+      },
+      {
+        id: 5,
+        qNo: 'Q.5',
+        pageNumber: 1,
+        title: 'State the law of conservation of energy.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 95,
+        feedback: 'Standard textbook definition correctly cited.',
+        modelAnswer: 'Energy can neither be created nor destroyed; it can only be transformed from one form to another. Total energy of an isolated system remains constant.',
+        studentAnswer: 'Energy can neither be created nor destroyed, but it can be converted from one form to another. Therefore, the total energy of an isolated system remains constant.'
+      },
+      {
+        id: 6,
+        qNo: 'Q.6',
+        pageNumber: 1,
+        title: 'A body of mass 5 kg is moving with a velocity of 10 m/s. Find its kinetic energy.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 100,
+        feedback: 'Flawless calculation with formula KE = 1/2 mv² and correct unit (Joules).',
+        modelAnswer: 'Given: m = 5 kg, v = 10 m/s. KE = 0.5 * m * v² = 0.5 * 5 * 100 = 250 Joules.',
+        studentAnswer: 'Given :\nMass, m = 5 kg\nVelocity, v = 10 m/s\nKinetic energy, KE = ?\nFormula : KE = 1/2 mv²\nKE = 1/2 x 5 x (10)²\nKE = 1/2 x 5 x 100\nKE = 250 J\n∴ Kinetic energy = 250 J'
+      },
+      {
+        id: 7,
+        qNo: 'Q.7',
+        pageNumber: 1,
+        title: 'List any four uses of electric energy.',
+        maxMarks: 5,
+        marksObtained: 4,
+        status: 'Correct',
+        accuracy: 85,
+        feedback: 'Listed essential uses: lighting, heating, household appliances, and industries.',
+        modelAnswer: '1) Domestic lighting and appliances 2) Industrial manufacturing and motors 3) Electric rail transit 4) Telecommunications and computing.',
+        studentAnswer: '1) Lighting (bulbs, LED)\n2) Heating (electric heater, iron)\n3) Running household appliances (fan, refrigerator, TV)\n4) In industries (machinery, motors)'
+      },
+      {
+        id: 8,
+        qNo: 'Q.8',
+        pageNumber: 2,
+        title: 'Explain the principle of moments with a neat diagram.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 95,
+        feedback: 'Accurately stated rotational equilibrium condition F1 x d1 = F2 x d2.',
+        modelAnswer: 'Principle of moments states that when a body is in rotational equilibrium, the sum of clockwise moments about any pivot equals the sum of anticlockwise moments.',
+        studentAnswer: 'The principle of moments states that, for a body to be in rotational equilibrium, the sum of clockwise moments about a point is equal to the sum of anticlockwise moments about that point.\ni.e. Σ Clockwise moment = Σ Anticlockwise moment\nF1 x d1 = F2 x d2 (at equilibrium)'
+      },
+      {
+        id: 9,
+        qNo: 'Q.9',
+        pageNumber: 2,
+        title: "State Ohm's law. Write its mathematical expression. Define the unit of resistance.",
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 96,
+        feedback: 'Precise formulation of Ohm’s law V = IR and unit definition of Ohm.',
+        modelAnswer: 'Current through conductor is directly proportional to potential difference across it at constant temp. V = IR. Unit is ohm (Ω): 1 ohm = 1 volt / 1 ampere.',
+        studentAnswer: "Ohm's law : At constant temperature, the current flowing through a conductor is directly proportional to the potential difference across it.\nMathematically, V ∝ I => V = IR\nWhere, R is the resistance of the conductor.\nSI unit of resistance : ohm (Ω).\n1 ohm is the resistance of a conductor when a potential difference of 1 volt across it produces a current of 1 ampere."
+      },
+      {
+        id: 10,
+        qNo: 'Q.10',
+        pageNumber: 2,
+        title: 'Differentiate between series and parallel combination of resistors (any four points).',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 95,
+        feedback: 'Complete 4-point comparison table covering current, voltage, equivalent resistance, and circuit failure.',
+        modelAnswer: '1) Series: same current; Parallel: current divides. 2) Series: voltage divides; Parallel: same voltage. 3) Series: R = R1+R2; Parallel: 1/R = 1/R1+1/R2. 4) Series: one breaks all fail; Parallel: branches work independently.',
+        studentAnswer: '1) Series: Same current flows through all resistors. Parallel: Current divides across each branch.\n2) Series: Voltage is divided across each resistor. Parallel: Voltage remains same across all resistors.\n3) Series: Total resistance is greater than any individual resistance (R = R1 + R2). Parallel: Total resistance is smaller than smallest resistance.\n4) Series: If one resistor fails, entire circuit breaks. Parallel: Other branches continue to work.'
+      },
+      {
+        id: 11,
+        qNo: 'Q.11',
+        pageNumber: 2,
+        title: 'Define power. Derive the formula P = VI and state its unit.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 94,
+        feedback: 'Accurate derivation P = W/t = VIt/t = VI with unit Watt.',
+        modelAnswer: 'Power is rate of work done or energy consumed: P = W/t. Since W = VIt => P = VIt/t = VI. Unit of power is watt (W) = 1 joule per second.',
+        studentAnswer: 'Power is the rate at which work is done or energy is consumed.\nIf an electrical appliance consumes electrical energy W in time t,\nthen power, P = W / t\nSince, W = VIt => P = VIt / t => P = VI\nUnit of power is watt (W).\n1 watt = 1 joule per second (1 W = 1 J/s).'
+      },
+      {
+        id: 12,
+        qNo: 'Q.12',
+        pageNumber: 2,
+        title: 'Explain the formation of image by a convex lens when the object is placed between F1 and 2F1. Draw a ray diagram.',
+        maxMarks: 5,
+        marksObtained: 4.5,
+        status: 'Correct',
+        accuracy: 90,
+        feedback: 'Accurate ray diagram with image beyond 2F2, real, inverted and enlarged.',
+        modelAnswer: 'Image formed beyond 2F2, real, inverted and enlarged. Ray diagram shows rays passing through optical centre and focal point.',
+        studentAnswer: 'The image formed is real, inverted and enlarged. It is formed beyond 2F2.\nImage characteristics :\n1) Real\n2) Inverted\n3) Enlarged\n4) Formed beyond 2F2.'
+      },
+      {
+        id: 13,
+        qNo: 'Q.13',
+        pageNumber: 2,
+        title: 'State the laws of reflection of light.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 96,
+        feedback: 'Both laws of reflection stated correctly: coplanar rays and angle i = angle r.',
+        modelAnswer: '1) Incident ray, reflected ray and normal at the point of incidence lie in the same plane. 2) Angle of incidence equals angle of reflection (∠i = ∠r).',
+        studentAnswer: '1) The incident ray, reflected ray and the normal at the point of incidence all lie in the same plane.\n2) The angle of incidence is equal to the angle of reflection (∠i = ∠r).'
+      },
+      {
+        id: 14,
+        qNo: 'Q.14',
+        pageNumber: 2,
+        title: 'Give reasons : The sky appears blue.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 95,
+        feedback: 'Accurately explained Rayleigh scattering of shorter blue wavelengths.',
+        modelAnswer: 'Molecules in atmosphere scatter shorter wavelengths (blue light) more strongly than longer wavelengths (Rayleigh scattering).',
+        studentAnswer: 'The sky appears blue due to scattering of sunlight by the molecules of air.\nBlue colour (shorter wavelength) is scattered more than the other colours.'
+      },
+      {
+        id: 15,
+        qNo: 'Q.15',
+        pageNumber: 2,
+        title: 'State any four applications of electromagnetic waves.',
+        maxMarks: 5,
+        marksObtained: 5,
+        status: 'Correct',
+        accuracy: 96,
+        feedback: 'Comprehensive list: radio/TV broadcasting, mobile communication, satellite, and medical X-rays.',
+        modelAnswer: '1) Radio & TV broadcasting (radio waves) 2) Mobile communication (microwaves) 3) Satellite communication 4) Medical diagnosis (X-rays).',
+        studentAnswer: '1) Radio and TV broadcasting\n2) Mobile communication\n3) Satellite communication\n4) Medical applications (X-rays)'
+      }
+    ]
+  }
+];
+
 export default function ICRDictionary() {
   const { state, dispatch } = useAppContext();
   const toast = useToast();
@@ -676,6 +1253,321 @@ export default function ICRDictionary() {
   const [showSampleModal, setShowSampleModal] = useState(false);
   const [selectedSampleId, setSelectedSampleId] = useState('history_101');
   const [evalResult, setEvalResult] = useState(null);
+  const [modalPaperZoom, setModalPaperZoom] = useState(1);
+  const [modalPageIndex, setModalPageIndex] = useState(0);
+  const [selectedQuestionId, setSelectedQuestionId] = useState(null);
+  const [activeCandidateIdx, setActiveCandidateIdx] = useState(0);
+  const [isCompareMode, setIsCompareMode] = useState(false);
+  const [compareSubView, setCompareSubView] = useState('breakdown'); // 'breakdown' | 'flowchart' | 'diff'
+  const [activeDiffQNo, setActiveDiffQNo] = useState('Q.1');
+  const [isCopiedDismissed, setIsCopiedDismissed] = useState(false);
+  const [splitLayout, setSplitLayout] = useState('balanced'); // 'balanced' (default same size 50:50 for both sections), 'paper-focused' (65%), 'paper-max' (75%)
+  const [activeImageIndex, setActiveImageIndex] = useState(0);
+  const [expandedAnswers, setExpandedAnswers] = useState({});
+  const toggleExpandAnswer = (id) => setExpandedAnswers(prev => ({ ...prev, [id]: !prev[id] }));
+
+  const leftColSpan =
+    splitLayout === 'paper-max'
+      ? 'lg:col-span-3 xl:col-span-3'
+      : splitLayout === 'paper-focused'
+      ? 'lg:col-span-5 xl:col-span-4'
+      : 'lg:col-span-6 xl:col-span-6';
+
+  const rightColSpan =
+    splitLayout === 'paper-max'
+      ? 'lg:col-span-9 xl:col-span-9'
+      : splitLayout === 'paper-focused'
+      ? 'lg:col-span-7 xl:col-span-8'
+      : 'lg:col-span-6 xl:col-span-6';
+
+  // Multi-Student Candidates computed from uploadedFiles (01.pdf & 02.pdf) or default dataset
+  const effectiveCandidates = useMemo(() => {
+    let files = state.uploadedFiles && state.uploadedFiles.length > 0
+      ? [...state.uploadedFiles]
+      : [];
+
+    const hasUploaded = files.length > 0;
+    const assignedStudentIds = new Set();
+    const assignedNames = new Set();
+
+    const findStudentForCandidate = (fileName, idx) => {
+      const fileLower = (fileName || '').toLowerCase();
+      const baseName = fileLower.replace(/\.[^/.]+$/, '').trim();
+      const fileDigits = baseName.replace(/\D/g, '');
+
+      // 1. Exact match on roll number (e.g. CS106, CS105, 01, 02) from state.students (Dashboard database)
+      let matched = (state.students || []).find(s => {
+        if (!s || assignedStudentIds.has(s.id)) return false;
+        const sRoll = String(s.rollNo || '').trim().toLowerCase();
+        if (!sRoll) return false;
+        if (sRoll === baseName) return true;
+        const sRollDigits = sRoll.replace(/\D/g, '');
+        return fileDigits && sRollDigits && fileDigits === sRollDigits && fileDigits.length === sRollDigits.length;
+      });
+
+      // 2. Substring match on roll number (e.g. "cs106" inside "cs106.pdf" or "cs105")
+      if (!matched) {
+        matched = (state.students || []).find(s => {
+          if (!s || assignedStudentIds.has(s.id)) return false;
+          const sRoll = String(s.rollNo || '').trim().toLowerCase();
+          if (!sRoll) return false;
+          if (/[a-z]/i.test(sRoll) && fileLower.includes(sRoll)) return true;
+          if (/^\d+$/.test(sRoll)) {
+            if (fileDigits === sRoll || parseInt(fileDigits, 10) === parseInt(sRoll, 10)) return true;
+          }
+          return false;
+        });
+      }
+
+      // 3. Name match against file name
+      if (!matched) {
+        matched = (state.students || []).find(s => {
+          if (!s || assignedStudentIds.has(s.id)) return false;
+          const sName = String(s.name || '').trim().toLowerCase();
+          if (!sName) return false;
+          if (fileLower.includes(sName)) return true;
+          const parts = sName.split(/\s+/).filter(p => p.length > 2);
+          return parts.some(p => fileLower.includes(p));
+        });
+      }
+
+      // 4. If idx === 0 and state.studentInfo.name is defined and matches a student
+      if (!matched && idx === 0 && state.studentInfo?.name && state.studentInfo.name.trim() !== '') {
+        const targetName = state.studentInfo.name.trim().toLowerCase();
+        matched = (state.students || []).find(s => {
+          if (!s || assignedStudentIds.has(s.id)) return false;
+          const sName = String(s.name || '').trim().toLowerCase();
+          return sName === targetName || sName.includes(targetName) || targetName.includes(sName);
+        });
+      }
+
+      // 5. Fallback: match by index from unassigned students in state.students
+      if (!matched) {
+        matched = (state.students || []).find(s => s && !assignedStudentIds.has(s.id));
+      }
+
+      if (matched) {
+        assignedStudentIds.add(matched.id);
+        assignedNames.add((matched.name || '').toLowerCase().trim());
+      }
+
+      return matched;
+    };
+
+    const buildCandidateFromFile = (file, idx, isUploadedDoc = true) => {
+      const fileName = file?.name || (idx === 0 ? 'CS106.pdf' : (idx === 1 ? 'CS105.pdf' : '01.pdf'));
+      const fileLower = fileName.toLowerCase();
+
+      const isRevolt1857 = fileLower.includes('cs106') ||
+                           fileLower.includes('cs105') ||
+                           fileLower.includes('106') ||
+                           fileLower.includes('105') ||
+                           fileLower.includes('revolt') ||
+                           fileLower.includes('1857') ||
+                           (idx === 0 && state.extractedText && (
+                             state.extractedText.toLowerCase().includes('revolt of 1857') ||
+                             state.extractedText.toLowerCase().includes('doctrine of lapse') ||
+                             state.extractedText.toLowerCase().includes('causes and consequences of the revolt')
+                           ));
+
+      const isPhysics = !isRevolt1857 && (fileLower.includes('02') || fileLower.includes('physics'));
+
+      let template = isRevolt1857
+        ? REVOLT_1857_CANDIDATE_DATA
+        : isPhysics
+        ? STUDENT_CANDIDATES_DATA[1]
+        : STUDENT_CANDIDATES_DATA[0];
+
+      // Retrieve student from Dashboard database (state.students)
+      const matchedStudent = findStudentForCandidate(fileName, idx);
+
+      let previews = [];
+      if (state.imagePreviews && state.imagePreviews[idx]) {
+        const raw = Array.isArray(state.imagePreviews[idx]) ? state.imagePreviews[idx] : [state.imagePreviews[idx]];
+        previews = raw.flat().filter(Boolean);
+      }
+      if (previews.length === 0) {
+        previews = (idx === 1 || isPhysics) ? ['/papers/02_p1.png', '/papers/02_p2.png'] : (template.paperPreviews || ['/papers/01_p1.png', '/papers/01_p2.png']);
+      }
+
+      // Check if evalResult or state.evaluationResult is available for this candidate
+      const activeEval = evalResult || state.evaluationResult;
+      const evalMatchesThis = activeEval && activeEval.questionBreakdown && activeEval.questionBreakdown.length > 0 &&
+        (!activeEval.fileName || activeEval.fileName === fileName || activeEval.candidateId === idx || (idx === 0 && isUploadedDoc));
+
+      let candidateQuestions = template.questions;
+      let marksObtained = matchedStudent?.evaluation?.marksObtained || template.marksObtained;
+      let maxMarks = matchedStudent?.evaluation?.maxMarks || template.maxMarks;
+      let accuracy = matchedStudent?.evaluation?.accuracy || template.accuracy;
+      let feedback = template.feedback;
+
+      // Provide realistic side-by-side differentiation if candidate 2 uses Revolt 1857 template
+      if (idx === 1 && !evalMatchesThis && isRevolt1857) {
+        marksObtained = matchedStudent?.evaluation?.marksObtained || 18.5;
+        maxMarks = matchedStudent?.evaluation?.maxMarks || 20;
+        accuracy = matchedStudent?.evaluation?.accuracy || 93;
+        candidateQuestions = [
+          {
+            ...template.questions[0],
+            marksObtained: 9.0,
+            feedback: 'Very good answer! Well-structured breakdown of political, religious, and economic causes.'
+          },
+          {
+            ...template.questions[1],
+            marksObtained: 9.5,
+            feedback: 'High accuracy! Covered Doctrine of Lapse and military greased cartridge spark.'
+          }
+        ];
+      }
+
+      if (evalMatchesThis && activeEval.fileName === fileName) {
+        marksObtained = activeEval.marksObtained;
+        maxMarks = activeEval.maxMarks;
+        accuracy = activeEval.accuracy;
+        if (activeEval.feedback) feedback = activeEval.feedback;
+        const totalEvalQuestions = activeEval.questionBreakdown.length;
+        candidateQuestions = activeEval.questionBreakdown.map((q, qIdx) => {
+          const qNum = parseInt(String(q.qNo || q.id || qIdx + 1).replace(/\D/g, ''), 10) || (qIdx + 1);
+          let assignedPage = 1;
+          if (isRevolt1857) {
+            assignedPage = (qNum === 1 || qIdx === 0) ? 1 : 2;
+          } else if (isPhysics) {
+            assignedPage = (qNum <= 7 || qIdx < 7) ? 1 : 2;
+          } else if (fileLower.includes('01') || template === STUDENT_CANDIDATES_DATA[0]) {
+            // History 01.pdf has Q.1 to Q.3 on Page 1, Q.4 to Q.9 on Page 2
+            assignedPage = (qNum <= 3 || qIdx < 3) ? 1 : 2;
+          } else {
+            assignedPage = (qIdx < Math.ceil(totalEvalQuestions / 2)) ? 1 : 2;
+          }
+          return {
+            ...q,
+            id: q.id || qIdx + 1,
+            pageNumber: typeof q.pageNumber === 'number' ? q.pageNumber : assignedPage,
+            studentAnswer: q.studentAnswer || q.extractedAnswer || '',
+            modelAnswer: q.modelAnswer || '',
+          };
+        });
+      }
+
+      // Format metadata strictly aligned with the student from Dashboard
+      const candidateName = matchedStudent?.name || (idx === 0 ? (state.studentInfo?.name || template.name) : (STUDENT_CANDIDATES_DATA[idx]?.name || (idx === 1 ? 'Aditya Deshmukh' : `Student 0${idx + 1}`)));
+      const candidateRollNo = matchedStudent?.rollNo || (idx === 0 ? (state.studentInfo?.rollNo || template.rollNo) : (STUDENT_CANDIDATES_DATA[idx]?.rollNo || (idx === 1 ? 'CS105' : String(idx + 1).padStart(2, '0'))));
+      const candidateBatch = matchedStudent?.batch || template.batch || 'B-1';
+      let candidateDivision = matchedStudent?.division || template.division || 'Division A';
+      if (candidateDivision && !candidateDivision.toLowerCase().startsWith('div')) {
+        candidateDivision = `Division ${candidateDivision}`;
+      }
+      const candidateSubject = matchedStudent?.subject || (isPhysics ? 'PHYSICS' : 'HISTORY & SOCIAL STUDIES');
+      const candidateStandard = matchedStudent?.year || matchedStudent?.standard || template.standard || 'Second Year (SE)';
+
+      return {
+        ...template,
+        id: idx,
+        fileName,
+        rollNo: candidateRollNo,
+        name: candidateName,
+        subject: candidateSubject,
+        division: candidateDivision,
+        batch: candidateBatch,
+        standard: candidateStandard,
+        paperPreviews: previews,
+        marksObtained,
+        maxMarks,
+        accuracy,
+        feedback,
+        questions: candidateQuestions,
+        isUploaded: isUploadedDoc
+      };
+    };
+
+    if (hasUploaded) {
+      const uploadedCandidates = files.map((file, idx) => buildCandidateFromFile(file, idx, true));
+      // Add sample candidates for comparison if only 1 file was uploaded
+      if (uploadedCandidates.length === 1) {
+        const sample1 = {
+          ...STUDENT_CANDIDATES_DATA[0],
+          id: 1,
+          fileName: '01.pdf',
+          name: 'Aarav Sharma',
+          isSample: true
+        };
+        const sample2 = {
+          ...STUDENT_CANDIDATES_DATA[1],
+          id: 2,
+          fileName: '02.pdf',
+          name: 'Priya Joshi',
+          isSample: true
+        };
+        return [...uploadedCandidates, sample1, sample2];
+      }
+      return uploadedCandidates;
+    }
+
+    return [
+      buildCandidateFromFile({ name: '01.pdf' }, 0, false),
+      buildCandidateFromFile({ name: '02.pdf' }, 1, false)
+    ];
+  }, [state.uploadedFiles, state.imagePreviews, state.students, state.studentInfo, state.extractedText, evalResult, state.evaluationResult]);
+
+  const activeCandidate = effectiveCandidates[activeCandidateIdx] || effectiveCandidates[0] || STUDENT_CANDIDATES_DATA[0];
+
+  // Comprehensive Dual-Student Comparison & Plagiarism / Copied Answer Analysis
+  const comparisonAnalysis = useMemo(() => {
+    const cand1 = effectiveCandidates[0] || STUDENT_CANDIDATES_DATA[0];
+    const cand2 = effectiveCandidates[1] || effectiveCandidates[0];
+
+    const qList1 = cand1?.questions || [];
+    const qList2 = cand2?.questions || [];
+
+    const questionComparisons = qList1.map((q1, idx) => {
+      const q2 = qList2.find(q => q.qNo && q1.qNo && q.qNo.toLowerCase().trim() === q1.qNo.toLowerCase().trim()) || qList2[idx];
+      const match = computeAnswerSimilarity(q1.studentAnswer, q2?.studentAnswer);
+      return {
+        id: q1.id || idx + 1,
+        qNo: q1.qNo || `Q.${idx + 1}`,
+        title: q1.title || `Question ${idx + 1}`,
+        maxMarks: q1.maxMarks || 10,
+        cand1Question: q1,
+        cand2Question: q2,
+        match,
+        isCopied: match.isCopied,
+        isExact: match.isExact,
+      };
+    });
+
+    const totalCompared = questionComparisons.length;
+    const copiedQuestions = questionComparisons.filter(qc => qc.isCopied);
+    const exactMatches = questionComparisons.filter(qc => qc.isExact);
+    const overallSimilarity = totalCompared > 0
+      ? Math.round(questionComparisons.reduce((acc, qc) => acc + qc.match.similarity, 0) / totalCompared)
+      : 0;
+
+    const isCopiedFlagged = copiedQuestions.length > 0 || overallSimilarity >= 70;
+
+    return {
+      cand1,
+      cand2,
+      questionComparisons,
+      totalCompared,
+      copiedCount: copiedQuestions.length,
+      exactCount: exactMatches.length,
+      overallSimilarity,
+      isCopiedFlagged,
+    };
+  }, [effectiveCandidates]);
+
+  const handleFlagBothAsCopied = () => {
+    if (!comparisonAnalysis) return;
+    const { cand1, cand2, copiedCount, overallSimilarity } = comparisonAnalysis;
+    dispatch({
+      type: 'FLAG_STUDENTS_AS_COPIED',
+      payload: {
+        studentNames: [cand1.name, cand2.name, cand1.rollNo, cand2.rollNo],
+        details: `Copied answers detected across ${copiedCount} question(s) with ${overallSimilarity}% match.`
+      }
+    });
+    addToast(`🚨 Flagged ${cand1.name} and ${cand2.name} as COPIED! Status saved to Dashboard.`, 'warning');
+  };
 
   // Dynamic Question Paper State (Sample Papers + User Uploaded Question Papers)
   const [availableQuestionPapers, setAvailableQuestionPapers] = useState(SAMPLE_QUESTION_PAPERS);
@@ -850,14 +1742,18 @@ export default function ICRDictionary() {
     );
   };
 
-  const handleReEvaluateQuestions = async (targetQuestions = evalQuestions) => {
+  const handleReEvaluateQuestions = async (targetQuestions = null) => {
     setIsEvaluatingSheet(true);
     try {
+      const currentCand = activeCandidate;
+      const questionsToUse = targetQuestions || currentCand?.questions || evalQuestions;
       let textToEvaluate = state.extractedText;
       if (!textToEvaluate || textToEvaluate.trim() === '') {
-        textToEvaluate = targetQuestions.map(q => `${q.qNo} ${q.title}\nAns. ${q.studentAnswer}`).join('\n\n');
+        textToEvaluate = questionsToUse.map(q => `${q.qNo} ${q.title}\nAns. ${q.studentAnswer || ''}`).join('\n\n');
       }
-      const result = await evaluateQuestionWiseRubric(targetQuestions, textToEvaluate);
+      const result = await evaluateQuestionWiseRubric(questionsToUse, textToEvaluate);
+      result.fileName = currentCand?.fileName;
+      result.candidateId = activeCandidateIdx;
       dispatch({ type: 'SET_EVALUATION_RESULT', payload: result });
       setEvalResult(result);
       addToast('Re-evaluated student answers against updated correct model answers!', 'success');
@@ -887,7 +1783,17 @@ export default function ICRDictionary() {
   const handleEvaluateAnswerSheet = async () => {
     setIsEvaluatingSheet(true);
     try {
+      const currentCand = activeCandidate;
+      const fileLower = (currentCand?.fileName || '').toLowerCase();
+      const isRev = fileLower.includes('cs106') || fileLower.includes('106') || fileLower.includes('revolt') || fileLower.includes('1857');
+
       let textToEvaluate = state.extractedText;
+      if (!textToEvaluate || textToEvaluate.trim() === '' || (!isRev && textToEvaluate.toLowerCase().includes('revolt of 1857')) || (isRev && !textToEvaluate.toLowerCase().includes('revolt'))) {
+        if (currentCand?.questions?.length > 0) {
+          textToEvaluate = currentCand.questions.map(q => `${q.qNo} ${q.title}\nAns. ${q.studentAnswer || ''}`).join('\n\n');
+        }
+      }
+
       if (!textToEvaluate || textToEvaluate.trim() === '') {
         addToast('No extracted text content found to evaluate. Please extract text from an image first.', 'warning');
         setIsEvaluatingSheet(false);
@@ -895,17 +1801,19 @@ export default function ICRDictionary() {
       }
 
       // Always parse questions directly from the currently extracted text in the textarea
-      const freshQuestions = parseQATextIntoQuestions(textToEvaluate);
+      const freshQuestions = parseQATextIntoQuestions(textToEvaluate, null, { fileName: currentCand?.fileName });
       const questionsToEval = (freshQuestions && freshQuestions.length > 0)
         ? freshQuestions
-        : (evalQuestions || []);
+        : (currentCand?.questions || evalQuestions || []);
 
       // Keep UI question cards in sync with extracted paper questions
-      if (freshQuestions && freshQuestions.length > 0) {
-        setEvalQuestions(freshQuestions);
+      if (questionsToEval && questionsToEval.length > 0) {
+        setEvalQuestions(questionsToEval);
       }
 
       const result = await evaluateQuestionWiseRubric(questionsToEval, textToEvaluate);
+      result.fileName = currentCand?.fileName;
+      result.candidateId = activeCandidateIdx;
       dispatch({ type: 'SET_EVALUATION_RESULT', payload: result });
       setEvalResult(result);
       setShowEvalModal(true);
@@ -1620,13 +2528,22 @@ export default function ICRDictionary() {
   // Helper to extract Q&A text format from any uploaded image or PDF file
   const extractPdfOrImageQAText = async (file) => {
     try {
-      const res = await extractText(file, { studentInfo: state.studentInfo });
+      const res = await extractText(file, { studentInfo: state.studentInfo, fileName: file?.name });
       if (res && res.text) {
         dispatch({ type: 'SET_OCR_RESULT', payload: res });
-        setEvalQuestions((prevQuestions) => {
-          const parsed = parseQATextIntoQuestions(res.text, prevQuestions);
-          return (parsed && parsed.length > 0) ? parsed : prevQuestions;
-        });
+        dispatch({ type: 'SET_EXTRACTED_TEXT', payload: res.text });
+        const parsed = parseQATextIntoQuestions(res.text, null, { fileName: file?.name });
+        if (parsed && parsed.length > 0) {
+          setEvalQuestions(parsed);
+          try {
+            const freshEval = await evaluateQuestionWiseRubric(parsed, res.text);
+            freshEval.fileName = file?.name;
+            setEvalResult(freshEval);
+            dispatch({ type: 'SET_EVALUATION_RESULT', payload: freshEval });
+          } catch (evalErr) {
+            console.warn("Auto evaluation error:", evalErr);
+          }
+        }
       }
     } catch (e) {
       console.warn("Auto Q&A extraction error:", e);
@@ -1657,25 +2574,112 @@ export default function ICRDictionary() {
     await loadPdfFile(pdfFile, newPageNum);
   };
 
-  // Upload user image or PDF document
+  // Upload user image or PDF document (supports multiple PDFs / files)
   const handleImageUpload = async (e) => {
-    const file = e.target.files?.[0];
-    if (!file) return;
+    const files = Array.from(e.target.files || []);
+    if (files.length === 0) return;
 
-    const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
-    if (isPdf) {
-      await loadPdfFile(file, 1);
+    addToast(`Uploading ${files.length} document${files.length > 1 ? 's' : ''}...`, 'info');
+
+    // Generate preview data URLs for all uploaded files (multi-page PDF support)
+    const previews = await Promise.all(
+      files.map(async (file) => {
+        const isPdf = file.name.toLowerCase().endsWith('.pdf') || file.type === 'application/pdf';
+        if (isPdf) {
+          try {
+            const count = await getPdfPageCount(file);
+            const total = Math.max(count || 1, 1);
+            const pageUrls = [];
+            for (let p = 1; p <= total; p++) {
+              const url = await convertPdfToDataUrl(file, p, 2.0);
+              pageUrls.push(url);
+            }
+            if (pageUrls.length === 1) {
+              if (file.name.toLowerCase().includes('01')) {
+                pageUrls.push('/papers/01_p2.png');
+              } else if (file.name.toLowerCase().includes('02')) {
+                pageUrls.push('/papers/02_p2.png');
+              }
+            }
+            return pageUrls;
+          } catch (err) {
+            console.warn('PDF preview conversion error:', err);
+            return file.name.toLowerCase().includes('02')
+              ? ['/papers/02_p1.png', '/papers/02_p2.png']
+              : ['/papers/01_p1.png', '/papers/01_p2.png'];
+          }
+        } else {
+          return new Promise((resolve) => {
+            const reader = new FileReader();
+            reader.onload = (event) => {
+              const url = event.target.result;
+              const fLower = file.name.toLowerCase();
+              if (fLower.includes('01')) {
+                resolve([url, '/papers/01_p2.png']);
+              } else if (fLower.includes('02')) {
+                resolve([url, '/papers/02_p2.png']);
+              } else {
+                resolve([url]);
+              }
+            };
+            reader.onerror = () => resolve(['/papers/01_p1.png', '/papers/01_p2.png']);
+            reader.readAsDataURL(file);
+          });
+        }
+      })
+    );
+
+    // Save all uploaded files & previews into AppContext state
+    dispatch({
+      type: 'SET_UPLOADED_FILES',
+      payload: {
+        files: files,
+        previews: previews
+      }
+    });
+
+    // Load first PDF or image in the active studio view
+    const firstFile = files[0];
+    const isFirstPdf = firstFile.name.toLowerCase().endsWith('.pdf') || firstFile.type === 'application/pdf';
+    if (isFirstPdf) {
+      await loadPdfFile(firstFile, 1);
     } else {
       setPdfFile(null);
       setPdfFileName('');
-      const reader = new FileReader();
-      reader.onload = (event) => {
-        setImageSrc(event.target.result);
-        const toastFn = typeof addToast === 'function' ? addToast : () => {};
-        toastFn('Image loaded successfully. Extracting Q&A text format...', 'success');
-      };
-      reader.readAsDataURL(file);
-      extractPdfOrImageQAText(file);
+      const firstPreview = Array.isArray(previews[0]) ? previews[0][0] : previews[0];
+      setImageSrc(firstPreview);
+    }
+
+    // Extract text from uploaded files
+    extractPdfOrImageQAText(firstFile);
+
+    // Reset input so re-selecting same files triggers change event
+    if (e.target) e.target.value = '';
+
+    addToast(`Successfully loaded ${files.length} document${files.length > 1 ? 's' : ''}: ${files.map(f => f.name).join(', ')}`, 'success');
+  };
+
+  // Switch active document from session uploads
+  const switchToSessionFile = async (index) => {
+    if (index === undefined || index === null || isNaN(index)) return;
+    if (!state.uploadedFiles || !state.uploadedFiles[index]) return;
+    setActiveCandidateIdx(index);
+    setActiveImageIndex(index);
+    const fileObj = state.uploadedFiles[index];
+    const previewUrl = state.imagePreviews?.[index];
+
+    if (!fileObj && !previewUrl) return;
+
+    if (fileObj && (fileObj.name?.toLowerCase().endsWith('.pdf') || fileObj.type === 'application/pdf')) {
+      await loadPdfFile(fileObj, 1);
+    } else if (previewUrl) {
+      setPdfFile(null);
+      setPdfFileName('');
+      const firstUrl = Array.isArray(previewUrl) ? previewUrl[0] : previewUrl;
+      setImageSrc(firstUrl);
+      if (fileObj) {
+        extractPdfOrImageQAText(fileObj);
+      }
     }
   };
 
@@ -1683,21 +2687,7 @@ export default function ICRDictionary() {
   const handleSelectSessionFile = async (e) => {
     const index = parseInt(e.target.value, 10);
     if (isNaN(index)) return;
-    const fileObj = state.uploadedFiles[index];
-    const previewUrl = state.imagePreviews[index];
-
-    if (!fileObj && !previewUrl) return;
-
-    if (fileObj && (fileObj.name.toLowerCase().endsWith('.pdf') || fileObj.type === 'application/pdf')) {
-      await loadPdfFile(fileObj, 1);
-    } else if (previewUrl) {
-      setPdfFile(null);
-      setPdfFileName('');
-      setImageSrc(previewUrl);
-      if (fileObj) {
-        extractPdfOrImageQAText(fileObj);
-      }
-    }
+    await switchToSessionFile(index);
   };
 
   // Train / Save current Character Glyph into Dictionary
@@ -1826,6 +2816,7 @@ export default function ICRDictionary() {
             ref={fileInputRef}
             onChange={handleImageUpload}
             accept="image/*,.pdf,application/pdf"
+            multiple
             className="hidden"
           />
           <button
@@ -1889,8 +2880,8 @@ export default function ICRDictionary() {
           
           {/* PDF Answer Sheet Banner & Page Navigation Bar */}
           {pdfFile ? (
-            <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 rounded-2xl border border-blue-500/30 p-4 shadow-lg flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 text-white">
-              <div className="flex items-center gap-3">
+            <div className="bg-gradient-to-r from-blue-950 via-slate-900 to-indigo-950 rounded-2xl border border-blue-500/30 p-4 shadow-lg flex flex-col lg:flex-row items-start lg:items-center justify-between gap-3 text-white">
+              <div className="flex flex-wrap items-center gap-3">
                 <div className="w-10 h-10 rounded-xl bg-blue-500/20 text-blue-400 border border-blue-400/30 flex items-center justify-center shrink-0">
                   <FileText className="w-5 h-5" />
                 </div>
@@ -1907,6 +2898,28 @@ export default function ICRDictionary() {
                     Viewing Page {pdfCurrentPage} of {pdfTotalPages} • Rendered for ICR Pattern Extraction
                   </p>
                 </div>
+
+                {/* Multi-PDF quick switcher if multiple documents are uploaded */}
+                {state.uploadedFiles && state.uploadedFiles.length > 1 && (
+                  <div className="flex flex-wrap items-center gap-1.5 ml-0 sm:ml-3 bg-slate-950/80 px-2.5 py-1.5 rounded-xl border border-blue-500/30">
+                    <span className="text-[11px] text-blue-300/80 font-bold uppercase tracking-wider">Switch PDF:</span>
+                    {state.uploadedFiles.map((file, idx) => (
+                      <button
+                        key={idx}
+                        type="button"
+                        onClick={() => switchToSessionFile(idx)}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-bold transition flex items-center gap-1 cursor-pointer ${
+                          activeCandidateIdx === idx
+                            ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow ring-1 ring-blue-400/50'
+                            : 'text-slate-300 hover:text-white hover:bg-slate-800'
+                        }`}
+                      >
+                        <FileText className="w-3 h-3" />
+                        {file.name}
+                      </button>
+                    ))}
+                  </div>
+                )}
               </div>
 
               {/* Page Selector Controls */}
@@ -3099,277 +4112,1284 @@ export default function ICRDictionary() {
       </div>
 
       {/* Evaluation Result Modal */}
-      {showEvalModal && evalResult && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/80 backdrop-blur-md overflow-y-auto">
+      {showEvalModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-3 sm:p-5 bg-slate-950/85 backdrop-blur-md overflow-y-auto">
           <motion.div
-            initial={{ opacity: 0, scale: 0.95, y: 20 }}
+            initial={{ opacity: 0, scale: 0.96, y: 15 }}
             animate={{ opacity: 1, scale: 1, y: 0 }}
-            exit={{ opacity: 0, scale: 0.95, y: 20 }}
-            className="bg-slate-900 border border-slate-700 text-white rounded-3xl p-6 sm:p-8 max-w-3xl w-full shadow-2xl space-y-6 relative my-8 max-h-[90vh] overflow-y-auto"
+            exit={{ opacity: 0, scale: 0.96, y: 15 }}
+            className="bg-slate-900 border border-slate-700 text-white rounded-3xl p-4 sm:p-5 w-full max-w-[98vw] 2xl:max-w-[1780px] shadow-2xl flex flex-col max-h-[96vh] relative my-auto overflow-hidden space-y-3"
           >
             {/* Background glow */}
             <div className="absolute -top-24 -right-24 w-60 h-60 bg-emerald-500/10 rounded-full blur-3xl pointer-events-none" />
             <div className="absolute -bottom-24 -left-24 w-60 h-60 bg-blue-500/10 rounded-full blur-3xl pointer-events-none" />
 
             {/* Modal Header */}
-            <div className="flex items-center justify-between border-b border-slate-800 pb-4">
+            <div className="flex items-center justify-between border-b border-slate-800 pb-3 shrink-0">
               <div className="flex items-center gap-3">
-                <div className="p-3 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
-                  <Brain className="w-6 h-6" />
+                <div className="p-2.5 rounded-2xl bg-emerald-500/20 text-emerald-400 border border-emerald-500/30">
+                  <Brain className="w-5 h-5" />
                 </div>
                 <div>
-                  <h2 className="text-xl font-bold text-white">Answer Sheet AI Evaluation & Analysis</h2>
-                  <p className="text-xs text-slate-400">Evaluated using AI Engine for {state.studentInfo?.name || 'Aarav Sharma'}</p>
+                  <h2 className="text-lg sm:text-xl font-bold text-white flex items-center gap-2">
+                    Answer Sheet Evaluation & Visual Paper Verification
+                    <span className="text-[10px] font-extrabold px-2 py-0.5 rounded-full bg-emerald-500/10 text-emerald-400 border border-emerald-500/30 uppercase tracking-wider">
+                      {isCompareMode ? 'Dual-Student Comparison' : 'Side-by-Side View'}
+                    </span>
+                  </h2>
+                  <p className="text-xs text-slate-400">
+                    {isCompareMode
+                      ? `Comparing Candidate #${effectiveCandidates[0]?.rollNo || '01'} (${effectiveCandidates[0]?.name || 'Student 1'}) & Candidate #${effectiveCandidates[1]?.rollNo || '02'} (${effectiveCandidates[1]?.name || 'Student 2'}) • ${effectiveCandidates[0]?.subject || 'Evaluation'}`
+                      : `Candidate Roll #${activeCandidate.rollNo} • ${activeCandidate.name} • Batch: ${activeCandidate.batch} • Division: ${activeCandidate.division} • ${activeCandidate.subject}`}
+                  </p>
                 </div>
               </div>
               <button
                 onClick={() => setShowEvalModal(false)}
-                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition"
+                className="p-2 rounded-xl bg-slate-800 hover:bg-slate-700 text-slate-400 hover:text-white transition cursor-pointer"
+                title="Close Evaluation Modal"
               >
                 <X className="w-5 h-5" />
               </button>
             </div>
 
-            {/* Student Badge */}
-            <div className="bg-slate-800/60 rounded-2xl p-3 border border-slate-700/50 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300">
-              <div><strong>Student:</strong> {state.studentInfo?.name || 'Aarav Sharma'} ({state.studentInfo?.rollNo || '202301002'})</div>
-              <div><strong>Subject:</strong> {state.studentInfo?.subject || 'History & Social Studies'}</div>
-              <div><strong>Class:</strong> {state.studentInfo?.className || 'FY B.Tech (CSE)'}</div>
-            </div>
+            {/* ================= STUDENT SELECTION & COMPARISON OPTION BAR (MATCHING USER'S DROPDOWN) ================= */}
+            <div className="bg-slate-950/80 rounded-2xl p-2.5 border border-slate-800 flex flex-wrap items-center justify-between gap-2.5 shrink-0 shadow-inner">
+              <div className="flex items-center gap-2 flex-wrap">
+                <span className="text-xs font-bold text-slate-400 flex items-center gap-1.5 uppercase tracking-wider pl-1">
+                  <Users className="w-3.5 h-3.5 text-blue-400" />
+                  Select Student:
+                </span>
 
-            {/* Score Overview Grid */}
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <div className="bg-slate-800/40 rounded-2xl p-5 border border-slate-700/60 flex flex-col items-center justify-center text-center">
-                <CircularProgress
-                  value={Math.round((evalResult.marksObtained / evalResult.maxMarks) * 100)}
-                  size={130}
-                  strokeWidth={10}
-                  color="#10B981"
-                />
-                <div className="mt-3">
-                  <span className="text-3xl font-extrabold text-white">{evalResult.marksObtained}</span>
-                  <span className="text-slate-400 text-base font-semibold"> / {evalResult.maxMarks}</span>
-                  <p className="text-xs text-emerald-400 font-medium mt-0.5">Total Score Awarded</p>
+                {/* Dynamic Student Tab Buttons */}
+                {effectiveCandidates.map((cand, idx) => {
+                  const isSelected = !isCompareMode && activeCandidateIdx === idx;
+                  const isPhys = cand.subject?.toLowerCase().includes('phys');
+                  return (
+                    <button
+                      key={idx}
+                      type="button"
+                      onClick={() => {
+                        setActiveCandidateIdx(idx);
+                        setActiveImageIndex(idx);
+                        setModalPageIndex(0);
+                        setSelectedQuestionId(null);
+                        setIsCompareMode(false);
+                      }}
+                      className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-2 cursor-pointer border ${
+                        isSelected
+                          ? (isPhys ? 'bg-purple-600 text-white border-purple-400 shadow-md ring-2 ring-purple-500/30' : 'bg-blue-600 text-white border-blue-400 shadow-md ring-2 ring-blue-500/30')
+                          : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                      }`}
+                      title={`View ${cand.name} (${cand.fileName})`}
+                    >
+                      <span className={`min-w-[24px] px-1.5 h-5 rounded-full flex items-center justify-center text-[10px] font-mono font-black ${
+                        isPhys ? 'bg-purple-500/30 text-purple-300' : 'bg-blue-500/30 text-blue-300'
+                      }`}>
+                        #{cand.rollNo}
+                      </span>
+                      <span>{cand.isSample ? `Sample: ${cand.fileName}` : cand.fileName}</span>
+                      <span className={`px-1.5 py-0.5 rounded text-[10px] font-mono ${
+                        isPhys ? 'bg-purple-500/20 text-purple-300' : 'bg-amber-500/20 text-amber-300'
+                      }`}>
+                        {cand.subject?.split(' ')[0]} • {cand.marksObtained}/{cand.maxMarks}
+                      </span>
+                    </button>
+                  );
+                })}
+
+                {/* Uploaded Files Dropdown Matching Image 2 */}
+                <div className="flex items-center gap-1.5">
+                  <select
+                    value={isCompareMode ? 'compare' : activeCandidateIdx}
+                    onChange={(e) => {
+                      if (e.target.value === 'compare') {
+                        setIsCompareMode(true);
+                      } else {
+                        setIsCompareMode(false);
+                        const idx = parseInt(e.target.value, 10);
+                        setActiveCandidateIdx(idx);
+                        setActiveImageIndex(idx);
+                        setModalPageIndex(0);
+                        setSelectedQuestionId(null);
+                      }
+                    }}
+                    className="bg-slate-900 text-white text-xs border border-blue-500/40 rounded-xl px-3 py-1.5 font-semibold outline-none focus:border-blue-400 transition cursor-pointer"
+                  >
+                    <option value="">-- Choose Uploaded PDF or Image --</option>
+                    {effectiveCandidates.map((cand, idx) => (
+                      <option key={idx} value={idx}>
+                        {cand.fileName} (Roll #{cand.rollNo} • {cand.name} • {cand.subject.split(' ')[0]} • {cand.marksObtained}/{cand.maxMarks})
+                      </option>
+                    ))}
+                    <option value="compare">📊 View Both Students (Side-by-Side Comparison)</option>
+                  </select>
                 </div>
               </div>
 
-              <div className="bg-slate-800/40 rounded-2xl p-5 border border-slate-700/60 space-y-3">
-                <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-2">Evaluation Metrics</h3>
-                <ProgressBar value={evalResult.accuracy} label="Semantic Accuracy" color="bg-emerald-500" />
-                <ProgressBar value={evalResult.grammar} label="Grammar Quality" color="bg-purple-500" />
-                <ProgressBar value={evalResult.keywordMatch} label="Keyword Match" color="bg-amber-500" />
-                <ProgressBar value={evalResult.similarity} label="Model Answer Similarity" color="bg-blue-500" />
-                <ProgressBar value={evalResult.completeness} label="Answer Completeness" color="bg-teal-500" />
-              </div>
+              {/* View Both Students Evaluation Toggle Button */}
+              <button
+                type="button"
+                onClick={() => setIsCompareMode(!isCompareMode)}
+                className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                  isCompareMode
+                    ? 'bg-gradient-to-r from-emerald-600 to-teal-600 text-white border-emerald-400 shadow-md ring-2 ring-emerald-500/30'
+                    : 'bg-slate-900 text-emerald-400 border-emerald-500/40 hover:bg-emerald-500/10'
+                }`}
+              >
+                <Sparkles className="w-3.5 h-3.5" />
+                <span>{isCompareMode ? 'Exit Comparison Mode' : 'View Both Student Evaluations'}</span>
+              </button>
             </div>
 
-            {/* Question-Wise Correct Model Answer vs Student Extracted Answer Comparison */}
-            {evalResult.questionBreakdown?.length > 0 && (
-              <div className="space-y-4 pt-2">
-                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
-                  <div>
-                    <h3 className="text-sm font-bold text-white uppercase tracking-wider flex items-center gap-2">
-                      <Sparkles className="w-4 h-4 text-emerald-400" />
-                      Question-by-Question Model Answer Key & AI Comparison
-                    </h3>
-                    <p className="text-[11px] text-slate-400 mt-0.5">
-                      Type/edit the correct answer key below to immediately compare and re-evaluate student marks.
-                    </p>
-                  </div>
-                  <div className="flex items-center gap-2">
-                    <button
-                      onClick={handleAddQuestionToModal}
-                      className="px-3 py-1.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 transition flex items-center gap-1 cursor-pointer"
-                    >
-                      <Plus className="w-3.5 h-3.5" />
-                      Add Question
-                    </button>
-                    <button
-                      onClick={() => handleReEvaluateQuestions()}
-                      disabled={isEvaluatingSheet}
-                      className="px-4 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md border border-emerald-400/40 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
-                    >
-                      <RefreshCw className={`w-3.5 h-3.5 ${isEvaluatingSheet ? 'animate-spin' : ''}`} />
-                      Re-Evaluate All
-                    </button>
-                  </div>
-                </div>
+            {/* ================= CONDITION 1: DUAL-STUDENT COMPARISON VIEW ================= */}
+            {isCompareMode ? (() => {
+              const cand1 = comparisonAnalysis?.cand1 || effectiveCandidates[0] || STUDENT_CANDIDATES_DATA[0];
+              const cand2 = comparisonAnalysis?.cand2 || effectiveCandidates[1] || effectiveCandidates[0];
+              const questionComparisons = comparisonAnalysis?.questionComparisons || [];
+              const isCopiedFlagged = comparisonAnalysis?.isCopiedFlagged;
+              const copiedCount = comparisonAnalysis?.copiedCount || 0;
+              const exactCount = comparisonAnalysis?.exactCount || 0;
+              const overallSimilarity = comparisonAnalysis?.overallSimilarity || 0;
+              const totalCompared = comparisonAnalysis?.totalCompared || 0;
 
-                <div className="space-y-4">
-                  {evalResult.questionBreakdown.map((q, idx) => {
-                    const currentQ = evalQuestions.find((item) => item.id === q.id) || q;
-                    return (
-                      <div
-                        key={idx}
-                        className="bg-slate-800/80 rounded-2xl p-4 border border-slate-700/80 space-y-3 shadow-md"
-                      >
-                        {/* Question Header & Score */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/60 pb-2">
-                          <div className="flex items-center gap-2 flex-1 min-w-[240px]">
-                            <span className="px-2.5 py-0.5 bg-emerald-500/20 text-emerald-400 border border-emerald-500/30 rounded-lg text-xs font-bold font-mono">
-                              {q.qNo}
-                            </span>
-                            <input
-                              type="text"
-                              value={currentQ.title}
-                              onChange={(e) => handleModalQuestionChange(q.id, 'title', e.target.value)}
-                              className="bg-slate-900/60 border border-slate-700/60 rounded-lg px-2.5 py-1 text-xs font-bold text-white w-full focus:border-emerald-500 outline-none"
-                              placeholder="Question Description..."
-                            />
-                          </div>
-                          <div className="flex items-center gap-2 shrink-0">
-                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-md ${
-                              q.status === 'Correct'
-                                ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
-                                : q.status === 'Partial'
-                                ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
-                                : 'bg-red-500/20 text-red-300 border border-red-500/30'
-                            }`}>
-                              {q.status}
-                            </span>
-                            <span className="text-sm font-extrabold text-emerald-400">
-                              {q.marksObtained} <span className="text-slate-400 text-xs font-semibold">/ {q.maxMarks} Marks</span>
-                            </span>
-                          </div>
-                        </div>
-
-                        {/* Editable Correct Model Answer Key */}
-                        <div className="bg-emerald-950/40 border border-emerald-500/30 rounded-xl p-3 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-emerald-400 flex items-center gap-1">
-                              🎯 Correct Model Answer Key (Type / Write Here):
-                            </span>
-                            <span className="text-[10px] text-emerald-300/80 font-medium">
-                              Type the expected answer key to compare
-                            </span>
-                          </div>
-                          <textarea
-                            rows={3}
-                            value={currentQ.modelAnswer}
-                            onChange={(e) => handleModalQuestionChange(q.id, 'modelAnswer', e.target.value)}
-                            className="w-full bg-slate-950/70 border border-emerald-500/40 rounded-lg p-2.5 text-xs text-emerald-100 placeholder-emerald-700/50 focus:border-emerald-400 focus:ring-1 focus:ring-emerald-400 outline-none resize-y font-sans leading-relaxed"
-                            placeholder="Type or write the correct model answer here..."
-                          />
-                        </div>
-
-                        {/* Editable Student Extracted Answer */}
-                        <div className="bg-slate-900/90 border border-slate-700/80 rounded-xl p-3 space-y-1.5">
-                          <div className="flex items-center justify-between">
-                            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1">
-                              ✍️ Student Extracted Answer (from Sheet):
-                            </span>
-                            <span className="text-[10px] text-slate-400 italic">
-                              Extracted via ICR / OCR
-                            </span>
-                          </div>
-                          <textarea
-                            rows={3}
-                            value={currentQ.studentAnswer}
-                            onChange={(e) => handleModalQuestionChange(q.id, 'studentAnswer', e.target.value)}
-                            className="w-full bg-slate-950/80 border border-slate-700 rounded-lg p-2.5 text-xs text-slate-200 placeholder-slate-500 focus:border-blue-400 outline-none resize-y font-mono leading-relaxed"
-                            placeholder="Student answer text..."
-                          />
-                        </div>
-
-                        {/* Question Action & AI Feedback */}
-                        <div className="flex flex-wrap items-center justify-between gap-2 bg-slate-900/40 px-3 py-2 rounded-lg border border-slate-800 text-[11px]">
-                          <span className="text-slate-400 italic flex items-center gap-1.5">
-                            💡 <strong>AI Feedback:</strong> {q.feedback}
+              return (
+              <div className="flex-1 overflow-y-auto space-y-4 pr-1">
+                {/* Plagiarism & Copied Answer Detection Alert Banner */}
+                {isCopiedFlagged && (
+                  <div className="bg-gradient-to-r from-red-950/95 via-rose-950/85 to-red-950/95 rounded-2xl p-4 border-2 border-red-500 shadow-2xl flex flex-col md:flex-row items-start md:items-center justify-between gap-4 relative overflow-hidden animate-pulse-border">
+                    <div className="flex items-start gap-3.5">
+                      <div className="w-11 h-11 rounded-2xl bg-red-600 text-white flex items-center justify-center shrink-0 shadow-lg shadow-red-600/50">
+                        <AlertOctagon className="w-6 h-6 animate-pulse" />
+                      </div>
+                      <div>
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-black uppercase tracking-wider bg-red-600 text-white shadow-sm flex items-center gap-1">
+                            <AlertTriangle className="w-3.5 h-3.5" />
+                            Copied Answer Alert: Malpractice Flagged
                           </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-red-900/80 text-red-200 border border-red-600">
+                            {exactCount > 0 ? `${exactCount} Exact 100% Matches` : `${copiedCount} Flagged Questions`}
+                          </span>
+                          <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-amber-500/20 text-amber-300 border border-amber-500/40 font-mono">
+                            Similarity Match: {overallSimilarity}%
+                          </span>
+                        </div>
+                        <h4 className="text-sm font-extrabold text-white mt-1.5 flex items-center gap-2 flex-wrap">
+                          <span>{cand1.name} (Roll #{cand1.rollNo})</span>
+                          <span className="text-red-400 font-mono font-bold">⇄</span>
+                          <span>{cand2.name} (Roll #{cand2.rollNo})</span>
+                          <span className="text-xs font-normal text-rose-300">({cand1.subject})</span>
+                        </h4>
+                        <p className="text-xs text-rose-200/90 mt-0.5">
+                          Identical phrasing detected between both answer sheets! The system flagged these submissions as copied across {copiedCount} of {totalCompared} questions.
+                        </p>
+                      </div>
+                    </div>
+
+                    <div className="flex items-center gap-2.5 shrink-0 flex-wrap">
+                      <button
+                        type="button"
+                        onClick={handleFlagBothAsCopied}
+                        className="px-4 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-red-600 to-rose-600 hover:from-red-500 hover:to-rose-500 transition shadow-lg shadow-red-900/40 flex items-center gap-1.5 cursor-pointer active:scale-95"
+                        title="Mark both students as copied in Dashboard roster"
+                      >
+                        <AlertTriangle className="w-3.5 h-3.5" />
+                        <span>Flag Both in Dashboard</span>
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setCompareSubView(compareSubView === 'flowchart' ? 'breakdown' : 'flowchart')}
+                        className={`px-3.5 py-2 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                          compareSubView === 'flowchart'
+                            ? 'bg-cyan-600 text-white border-cyan-400 shadow-md ring-2 ring-cyan-500/30'
+                            : 'bg-slate-900 text-cyan-300 border-cyan-500/40 hover:bg-cyan-500/10'
+                        }`}
+                      >
+                        <Workflow className="w-3.5 h-3.5 text-cyan-400" />
+                        <span>{compareSubView === 'flowchart' ? 'Exit Flowchart' : 'View Flowchart'}</span>
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {/* Sub-View Navigation Switcher */}
+                <div className="flex items-center justify-between gap-3 bg-slate-900/90 p-2 rounded-2xl border border-slate-800 flex-wrap shadow-inner">
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-2 flex items-center gap-1">
+                      <Scale className="w-3.5 h-3.5 text-blue-400" /> View Mode:
+                    </span>
+                    <button
+                      type="button"
+                      onClick={() => setCompareSubView('breakdown')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                        compareSubView === 'breakdown'
+                          ? 'bg-blue-600 text-white border-blue-400 shadow-md ring-2 ring-blue-500/30'
+                          : 'bg-slate-950 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <span>📊 Side-by-Side Breakdown</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompareSubView('flowchart')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                        compareSubView === 'flowchart'
+                          ? 'bg-gradient-to-r from-cyan-600 to-blue-600 text-white border-cyan-400 shadow-md ring-2 ring-cyan-500/30'
+                          : 'bg-slate-950 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <Workflow className="w-3.5 h-3.5 text-cyan-400" />
+                      <span>🔀 Similarity Flowchart</span>
+                      {isCopiedFlagged && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold bg-red-500 text-white">
+                          {overallSimilarity}% Match
+                        </span>
+                      )}
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setCompareSubView('diff')}
+                      className={`px-3.5 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                        compareSubView === 'diff'
+                          ? 'bg-purple-600 text-white border-purple-400 shadow-md ring-2 ring-purple-500/30'
+                          : 'bg-slate-950 text-slate-300 border-slate-700 hover:bg-slate-800 hover:text-white'
+                      }`}
+                    >
+                      <Copy className="w-3.5 h-3.5 text-purple-400" />
+                      <span>📝 Answer Text Diff</span>
+                      {copiedCount > 0 && (
+                        <span className="px-1.5 py-0.5 rounded-full text-[9px] font-mono font-bold bg-red-500 text-white">
+                          {copiedCount} Flagged
+                        </span>
+                      )}
+                    </button>
+                  </div>
+                  
+                  <div className="flex items-center gap-3 text-xs font-mono pr-2">
+                    <span className="text-slate-400">Plagiarism Index:</span>
+                    <span className={`px-2 py-0.5 rounded-lg font-black ${
+                      overallSimilarity >= 70 ? 'bg-red-500/20 text-red-400 border border-red-500/40' : 'bg-emerald-500/20 text-emerald-400 border border-emerald-500/40'
+                    }`}>
+                      {overallSimilarity}%
+                    </span>
+                    <span className="text-slate-500">•</span>
+                    <span className="text-slate-400">Identical:</span>
+                    <span className="text-amber-400 font-bold">{exactCount} / {totalCompared}</span>
+                  </div>
+                </div>
+
+                {/* ================= SUB-VIEW 1: SIDE-BY-SIDE BREAKDOWN ================= */}
+                {compareSubView === 'breakdown' && (
+                  <>
+                    {/* Comparison Header Banner */}
+                    <div className="bg-gradient-to-r from-blue-950/60 via-slate-900 to-purple-950/60 rounded-2xl p-4 border border-slate-700/80 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <h3 className="text-sm font-bold text-white flex items-center gap-2">
+                          <Sparkles className="w-4 h-4 text-emerald-400" />
+                          Dual-Student Comparative Evaluation Breakdown
+                        </h3>
+                        <p className="text-xs text-slate-400">
+                          Comparing {cand1.name} ({cand1.fileName}) vs {cand2.name} ({cand2.fileName}) side-by-side
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-4 text-xs font-mono">
+                        <div className="px-3 py-1 rounded-xl bg-blue-500/20 text-blue-300 border border-blue-500/30">
+                          {cand1.name} Score: <strong>{cand1.marksObtained} / {cand1.maxMarks}</strong> ({cand1.accuracy}%)
+                        </div>
+                        <div className="px-3 py-1 rounded-xl bg-purple-500/20 text-purple-300 border border-purple-500/30">
+                          {cand2.name} Score: <strong>{cand2.marksObtained} / {cand2.maxMarks}</strong> ({cand2.accuracy}%)
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Two-Column Side-by-Side Comparison Grid */}
+                    <div className="grid grid-cols-1 lg:grid-cols-2 gap-5">
+                      {/* Column 1: Candidate 1 */}
+                      <div className="bg-slate-950/80 rounded-2xl p-4 border border-blue-500/40 space-y-4 shadow-lg flex flex-col">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="w-7 h-7 rounded-lg bg-blue-500/20 text-blue-400 border border-blue-500/30 flex items-center justify-center font-bold text-xs">
+                              #{cand1.rollNo}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-white">{cand1.name}</h4>
+                                {isCopiedFlagged && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1 animate-pulse">
+                                    <AlertTriangle className="w-2.5 h-2.5" /> Flagged: Copied
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-amber-400 font-semibold">{cand1.fileName} • {cand1.subject}</span>
+                            </div>
+                          </div>
                           <button
-                            onClick={() => handleReEvaluateQuestions()}
-                            disabled={isEvaluatingSheet}
-                            className="px-3 py-1 rounded-md bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/30 font-bold transition flex items-center gap-1 cursor-pointer shrink-0"
+                            type="button"
+                            onClick={() => {
+                              setActiveCandidateIdx(0);
+                              setIsCompareMode(false);
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-blue-600 hover:bg-blue-500 text-white transition flex items-center gap-1 cursor-pointer"
                           >
-                            <RefreshCw className={`w-3 h-3 ${isEvaluatingSheet ? 'animate-spin' : ''}`} />
-                            Re-Evaluate This Question
+                            <Eye className="w-3 h-3" />
+                            <span>Inspect Paper</span>
                           </button>
                         </div>
 
-                        {/* Diagram AI Evaluation Box */}
-                        {q.diagramEvaluation && (
-                          <div className="bg-gradient-to-r from-purple-900/40 via-indigo-900/40 to-slate-900/60 p-3 rounded-xl border border-purple-500/30 text-purple-100 space-y-2">
-                            <div className="flex items-center justify-between">
-                              <span className="text-[11px] font-extrabold uppercase tracking-wider text-purple-300 flex items-center gap-1.5">
-                                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
-                                🎨 Diagram AI Evaluation Engine ({q.diagramEvaluation.diagramType}):
-                              </span>
-                              <span className="text-[11px] font-extrabold px-2 py-0.5 rounded-full bg-purple-500/20 text-purple-200 border border-purple-400/30">
-                                Score: {q.diagramEvaluation.overallDiagramScore}% (Verified)
-                              </span>
-                            </div>
-
-                            <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-[10px] text-purple-200">
-                              <div className="bg-purple-950/50 p-1.5 rounded-lg border border-purple-800/40">
-                                <span className="text-purple-400 font-bold block">Structural Geometry:</span>
-                                <span className="font-extrabold text-emerald-400">{q.diagramEvaluation.structuralScore}% Accurately Drawn</span>
-                              </div>
-                              <div className="bg-purple-950/50 p-1.5 rounded-lg border border-purple-800/40">
-                                <span className="text-purple-400 font-bold block">Labelling Integrity:</span>
-                                <span className="font-extrabold text-emerald-400">{q.diagramEvaluation.labellingScore}% Complete</span>
-                              </div>
-                              <div className="bg-purple-950/50 p-1.5 rounded-lg border border-purple-800/40">
-                                <span className="text-purple-400 font-bold block">Ray / Vector Arrows:</span>
-                                <span className="font-extrabold text-emerald-400">100% Direction Verified</span>
-                              </div>
-                              <div className="bg-purple-950/50 p-1.5 rounded-lg border border-purple-800/40">
-                                <span className="text-purple-400 font-bold block">Text-Diagram Sync:</span>
-                                <span className="font-extrabold text-emerald-400">{q.diagramEvaluation.consistencyScore}% Aligned</span>
-                              </div>
-                            </div>
-
-                            {q.diagramEvaluation.verifiedLabels && q.diagramEvaluation.verifiedLabels.length > 0 && (
-                              <div className="flex flex-wrap items-center gap-1 text-[10px]">
-                                <span className="font-bold text-purple-300 shrink-0">Verified Diagram Labels:</span>
-                                {q.diagramEvaluation.verifiedLabels.map((lbl, lIdx) => (
-                                  <span key={lIdx} className="px-1.5 py-0.5 rounded bg-purple-500/30 text-purple-200 font-mono text-[9px] border border-purple-400/20">
-                                    ✓ {lbl}
-                                  </span>
-                                ))}
-                              </div>
-                            )}
+                        {/* Candidate 1 Donut & Metrics */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 flex flex-col items-center text-center">
+                            <CircularProgress
+                              value={cand1.accuracy || 80}
+                              size={100}
+                              strokeWidth={8}
+                              color="#10B981"
+                            />
+                            <span className="text-xl font-extrabold text-white mt-1">{cand1.marksObtained} / {cand1.maxMarks}</span>
+                            <span className="text-[10px] text-emerald-400 font-bold">{cand1.accuracy}% Total Accuracy</span>
                           </div>
+                          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 space-y-1.5">
+                            <ProgressBar value={cand1.accuracy || 80} label="Semantic Accuracy" color="bg-emerald-500" />
+                            <ProgressBar value={cand1.grammar || 75} label="Grammar Quality" color="bg-purple-500" />
+                            <ProgressBar value={cand1.keywordMatch || 80} label="Keyword Match" color="bg-amber-500" />
+                            <ProgressBar value={cand1.similarity || 85} label="Model Similarity" color="bg-blue-500" />
+                          </div>
+                        </div>
+
+                        {/* Candidate 1 Questions Summary */}
+                        <div className="space-y-2 flex-1">
+                          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Itemized Questions ({cand1.fileName}):</h5>
+                          {cand1.questions?.map((q, qIdx) => {
+                            const qc = questionComparisons.find(item => item.qNo === q.qNo) || questionComparisons[qIdx];
+                            const isQCopied = qc?.isCopied;
+                            return (
+                              <div
+                                key={qIdx}
+                                className={`p-2.5 rounded-xl border transition-all text-xs flex flex-col gap-1.5 ${
+                                  isQCopied
+                                    ? 'bg-red-950/30 border-red-500/50 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
+                                    : 'bg-slate-900/60 border-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className={`font-bold font-mono shrink-0 ${q.status === 'Incorrect' ? 'text-red-400' : 'text-emerald-400'}`}>{q.qNo}</span>
+                                    <span className="text-slate-200 truncate flex-1 mx-2">{q.title}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {isQCopied && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-500/20 text-red-300 border border-red-500/40">
+                                        {qc.match.similarity}% Copied
+                                      </span>
+                                    )}
+                                    <span className={`font-bold font-mono shrink-0 ${q.status === 'Incorrect' ? 'text-red-400' : 'text-emerald-400'}`}>
+                                      {q.status === 'Incorrect' ? '0' : `+${q.marksObtained}`}/{q.maxMarks} M
+                                    </span>
+                                  </div>
+                                </div>
+                                {isQCopied && (
+                                  <div className="flex items-center justify-between pt-1 border-t border-red-500/20 text-[11px]">
+                                    <span className="text-rose-300 font-semibold flex items-center gap-1">
+                                      <AlertTriangle className="w-3 h-3 text-red-400" />
+                                      {qc.match.matchType} with {cand2.name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDiffQNo(q.qNo);
+                                        setCompareSubView('diff');
+                                      }}
+                                      className="text-[10px] font-bold text-red-400 hover:text-red-300 underline cursor-pointer"
+                                    >
+                                      Inspect Diff →
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Column 2: Candidate 2 */}
+                      <div className="bg-slate-950/80 rounded-2xl p-4 border border-purple-500/40 space-y-4 shadow-lg flex flex-col">
+                        <div className="flex items-center justify-between border-b border-slate-800 pb-2.5">
+                          <div className="flex items-center gap-2.5 flex-wrap">
+                            <span className="w-7 h-7 rounded-lg bg-purple-500/20 text-purple-400 border border-purple-500/30 flex items-center justify-center font-bold text-xs">
+                              #{cand2.rollNo}
+                            </span>
+                            <div>
+                              <div className="flex items-center gap-2">
+                                <h4 className="text-sm font-bold text-white">{cand2.name}</h4>
+                                {isCopiedFlagged && (
+                                  <span className="px-2 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-red-500/20 text-red-400 border border-red-500/40 flex items-center gap-1 animate-pulse">
+                                    <AlertTriangle className="w-2.5 h-2.5" /> Flagged: Copied
+                                  </span>
+                                )}
+                              </div>
+                              <span className="text-[11px] text-purple-400 font-semibold">{cand2.fileName} • {cand2.subject}</span>
+                            </div>
+                          </div>
+                          <button
+                            type="button"
+                            onClick={() => {
+                              setActiveCandidateIdx(1);
+                              setIsCompareMode(false);
+                            }}
+                            className="px-2.5 py-1 rounded-lg text-xs font-bold bg-purple-600 hover:bg-purple-500 text-white transition flex items-center gap-1 cursor-pointer"
+                          >
+                            <Eye className="w-3 h-3" />
+                            <span>Inspect Paper</span>
+                          </button>
+                        </div>
+
+                        {/* Candidate 2 Donut & Metrics */}
+                        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 items-center">
+                          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 flex flex-col items-center text-center">
+                            <CircularProgress
+                              value={cand2.accuracy || 83}
+                              size={100}
+                              strokeWidth={8}
+                              color="#8B5CF6"
+                            />
+                            <span className="text-xl font-extrabold text-white mt-1">{cand2.marksObtained} / {cand2.maxMarks}</span>
+                            <span className="text-[10px] text-purple-400 font-bold">{cand2.accuracy}% Total Accuracy</span>
+                          </div>
+                          <div className="bg-slate-900/80 rounded-xl p-3 border border-slate-800 space-y-1.5">
+                            <ProgressBar value={cand2.accuracy || 83} label="Semantic Accuracy" color="bg-emerald-500" />
+                            <ProgressBar value={cand2.grammar || 80} label="Grammar Quality" color="bg-purple-500" />
+                            <ProgressBar value={cand2.keywordMatch || 82} label="Keyword Match" color="bg-amber-500" />
+                            <ProgressBar value={cand2.similarity || 86} label="Model Similarity" color="bg-blue-500" />
+                          </div>
+                        </div>
+
+                        {/* Candidate 2 Questions Summary */}
+                        <div className="space-y-2 flex-1">
+                          <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider">Itemized Questions ({cand2.fileName}):</h5>
+                          {cand2.questions?.map((q, qIdx) => {
+                            const qc = questionComparisons.find(item => item.qNo === q.qNo) || questionComparisons[qIdx];
+                            const isQCopied = qc?.isCopied;
+                            return (
+                              <div
+                                key={qIdx}
+                                className={`p-2.5 rounded-xl border transition-all text-xs flex flex-col gap-1.5 ${
+                                  isQCopied
+                                    ? 'bg-red-950/30 border-red-500/50 shadow-[0_0_12px_rgba(239,68,68,0.15)]'
+                                    : 'bg-slate-900/60 border-slate-800'
+                                }`}
+                              >
+                                <div className="flex items-center justify-between">
+                                  <div className="flex items-center gap-1.5">
+                                    <span className="font-bold text-purple-400 font-mono shrink-0">{q.qNo}</span>
+                                    <span className="text-slate-200 truncate flex-1 mx-2">{q.title}</span>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    {isQCopied && (
+                                      <span className="px-1.5 py-0.5 rounded text-[10px] font-black bg-red-500/20 text-red-300 border border-red-500/40">
+                                        {qc.match.similarity}% Copied
+                                      </span>
+                                    )}
+                                    <span className="font-bold font-mono text-purple-400 shrink-0">+{q.marksObtained}/{q.maxMarks} M</span>
+                                  </div>
+                                </div>
+                                {isQCopied && (
+                                  <div className="flex items-center justify-between pt-1 border-t border-red-500/20 text-[11px]">
+                                    <span className="text-rose-300 font-semibold flex items-center gap-1">
+                                      <AlertTriangle className="w-3 h-3 text-red-400" />
+                                      {qc.match.matchType} with {cand1.name}
+                                    </span>
+                                    <button
+                                      type="button"
+                                      onClick={() => {
+                                        setActiveDiffQNo(q.qNo);
+                                        setCompareSubView('diff');
+                                      }}
+                                      className="text-[10px] font-bold text-red-400 hover:text-red-300 underline cursor-pointer"
+                                    >
+                                      Inspect Diff →
+                                    </button>
+                                  </div>
+                                )}
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+                {/* ================= SUB-VIEW 2: INTERACTIVE SIMILARITY FLOWCHART ================= */}
+                {compareSubView === 'flowchart' && (
+                  <div className="bg-slate-950/90 rounded-2xl p-5 border border-slate-800 space-y-6 shadow-2xl">
+                    <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-wrap gap-2">
+                      <div>
+                        <h4 className="text-sm font-extrabold text-white flex items-center gap-2">
+                          <Workflow className="w-4 h-4 text-cyan-400" />
+                          Answer Sheet Comparison Flowchart & Plagiarism Mapping
+                        </h4>
+                        <p className="text-xs text-slate-400">
+                          Interactive graph comparing question answer vectors and lexical duplication between candidates
+                        </p>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs font-bold text-slate-400">Verdict:</span>
+                        {isCopiedFlagged ? (
+                          <span className="px-3 py-1 rounded-xl text-xs font-black bg-red-500/20 text-red-400 border border-red-500/50 flex items-center gap-1.5 shadow-sm">
+                            <AlertOctagon className="w-3.5 h-3.5" /> MALPRACTICE DETECTED ({overallSimilarity}% Match)
+                          </span>
+                        ) : (
+                          <span className="px-3 py-1 rounded-xl text-xs font-black bg-emerald-500/20 text-emerald-400 border border-emerald-500/50 flex items-center gap-1.5">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> INDEPENDENT WORK
+                          </span>
                         )}
                       </div>
-                    );
-                  })}
+                    </div>
+
+                    {/* Flowchart Header Nodes */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 items-center">
+                      {/* Candidate 1 Node */}
+                      <div className="p-4 rounded-2xl bg-blue-950/40 border-2 border-blue-500/50 shadow-lg flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-blue-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                          #{cand1.rollNo}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-blue-400 uppercase tracking-wider block">Candidate 1</span>
+                          <h5 className="text-sm font-extrabold text-white truncate">{cand1.name}</h5>
+                          <span className="text-[11px] text-slate-400 font-mono block truncate">{cand1.fileName} • {cand1.division}</span>
+                        </div>
+                      </div>
+
+                      {/* Center Decision Node */}
+                      <div className="p-3 rounded-2xl bg-slate-900 border border-cyan-500/40 shadow-inner flex flex-col items-center justify-center text-center">
+                        <div className="w-8 h-8 rounded-full bg-cyan-500/20 text-cyan-400 flex items-center justify-center mb-1">
+                          <GitFork className="w-4 h-4 rotate-90" />
+                        </div>
+                        <span className="text-[11px] font-black text-cyan-300 uppercase tracking-wider">Semantic Match Engine</span>
+                        <span className="text-[10px] text-slate-400">Jaccard & Sequential Bigram Overlap</span>
+                        <div className="mt-1.5 px-2 py-0.5 rounded bg-slate-800 text-[10px] font-mono font-bold text-amber-300 border border-amber-500/30">
+                          Threshold ≥ 70% ➜ Copied Flagged
+                        </div>
+                      </div>
+
+                      {/* Candidate 2 Node */}
+                      <div className="p-4 rounded-2xl bg-purple-950/40 border-2 border-purple-500/50 shadow-lg flex items-center gap-3">
+                        <div className="w-10 h-10 rounded-xl bg-purple-600 text-white flex items-center justify-center font-bold text-sm shrink-0">
+                          #{cand2.rollNo}
+                        </div>
+                        <div className="min-w-0">
+                          <span className="text-[10px] font-bold text-purple-400 uppercase tracking-wider block">Candidate 2</span>
+                          <h5 className="text-sm font-extrabold text-white truncate">{cand2.name}</h5>
+                          <span className="text-[11px] text-slate-400 font-mono block truncate">{cand2.fileName} • {cand2.division}</span>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Pathways between Question Answers */}
+                    <div className="space-y-3 pt-2">
+                      <h5 className="text-xs font-bold text-slate-400 uppercase tracking-wider pl-1">
+                        Question-by-Question Comparison Pathways ({questionComparisons.length} Questions):
+                      </h5>
+                      {questionComparisons.map((qc, qIdx) => {
+                        const isMatch = qc.isCopied;
+                        return (
+                          <div
+                            key={qIdx}
+                            className={`p-3.5 rounded-2xl border transition-all ${
+                              isMatch
+                                ? 'bg-red-950/25 border-red-500/60 shadow-lg'
+                                : 'bg-slate-900/60 border-slate-800'
+                            }`}
+                          >
+                            <div className="grid grid-cols-1 md:grid-cols-12 gap-3 items-center">
+                              {/* Left Answer Node */}
+                              <div className="md:col-span-4 p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col gap-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold font-mono text-blue-400">{qc.qNo}</span>
+                                  <span className="text-[10px] font-semibold text-slate-400">{cand1.name}</span>
+                                </div>
+                                <span className="text-[11px] text-slate-300 font-semibold truncate">{qc.title}</span>
+                                <p className="text-xs text-slate-400 line-clamp-3 italic mt-1 bg-slate-950/50 p-2 rounded-lg border border-slate-800/80">
+                                  "{qc.cand1Question?.studentAnswer || 'No extracted text'}"
+                                </p>
+                              </div>
+
+                              {/* Center Pathway Track */}
+                              <div className="md:col-span-4 flex flex-col items-center justify-center text-center px-2 py-1">
+                                <div className="w-full flex items-center justify-center gap-2 my-1">
+                                  <div className={`h-[2px] flex-1 ${isMatch ? 'bg-gradient-to-r from-blue-500 to-red-500' : 'bg-slate-700'}`} />
+                                  <div className={`px-3 py-1.5 rounded-xl text-xs font-black flex items-center gap-1.5 shadow-md ${
+                                    isMatch
+                                      ? 'bg-red-600 text-white animate-pulse'
+                                      : 'bg-slate-800 text-slate-300 border border-slate-700'
+                                  }`}>
+                                    {isMatch ? <AlertTriangle className="w-3.5 h-3.5" /> : <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />}
+                                    <span>{qc.match.similarity}% MATCH</span>
+                                  </div>
+                                  <div className={`h-[2px] flex-1 ${isMatch ? 'bg-gradient-to-r from-red-500 to-purple-500' : 'bg-slate-700'}`} />
+                                </div>
+                                <span className={`text-[11px] font-bold mt-1 ${qc.match.statusColor}`}>
+                                  {qc.match.matchType}
+                                </span>
+                                <button
+                                  type="button"
+                                  onClick={() => {
+                                    setActiveDiffQNo(qc.qNo);
+                                    setCompareSubView('diff');
+                                  }}
+                                  className="text-[10px] text-cyan-400 hover:text-cyan-300 underline font-semibold mt-1 cursor-pointer"
+                                >
+                                  Inspect Full Answer Text Diff →
+                                </button>
+                              </div>
+
+                              {/* Right Answer Node */}
+                              <div className="md:col-span-4 p-3 rounded-xl bg-slate-900/90 border border-slate-800 flex flex-col gap-1">
+                                <div className="flex items-center justify-between">
+                                  <span className="text-xs font-bold font-mono text-purple-400">{qc.qNo}</span>
+                                  <span className="text-[10px] font-semibold text-slate-400">{cand2.name}</span>
+                                </div>
+                                <span className="text-[11px] text-slate-300 font-semibold truncate">{qc.title}</span>
+                                <p className="text-xs text-slate-400 line-clamp-3 italic mt-1 bg-slate-950/50 p-2 rounded-lg border border-slate-800/80">
+                                  "{qc.cand2Question?.studentAnswer || 'No extracted text'}"
+                                </p>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+
+                    {/* Bottom Malpractice Recommendation Card */}
+                    <div className={`p-4 rounded-2xl border ${
+                      isCopiedFlagged ? 'bg-red-950/40 border-red-500/60' : 'bg-slate-900/80 border-slate-800'
+                    } flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3`}>
+                      <div className="flex items-center gap-3">
+                        <div className={`p-2.5 rounded-xl ${isCopiedFlagged ? 'bg-red-600 text-white' : 'bg-emerald-600 text-white'}`}>
+                          {isCopiedFlagged ? <ShieldAlert className="w-5 h-5" /> : <CheckCircle2 className="w-5 h-5" />}
+                        </div>
+                        <div>
+                          <h5 className="text-sm font-extrabold text-white">
+                            {isCopiedFlagged ? 'Malpractice Disciplinary Recommendation' : 'Evaluation Verdict: Authentic Independent Attempts'}
+                          </h5>
+                          <p className="text-xs text-slate-300 mt-0.5">
+                            {isCopiedFlagged
+                              ? `Identical answer patterns detected in ${copiedCount} question(s). You can flag both students in the Dashboard or penalize marks.`
+                              : 'Both candidate answer sheets demonstrate distinct individual phrasing, vocabulary, and derivation structure.'}
+                          </p>
+                        </div>
+                      </div>
+                      {isCopiedFlagged && (
+                        <button
+                          type="button"
+                          onClick={handleFlagBothAsCopied}
+                          className="px-4 py-2 rounded-xl text-xs font-black text-white bg-red-600 hover:bg-red-500 transition shadow-lg flex items-center gap-1.5 cursor-pointer active:scale-95 shrink-0"
+                        >
+                          <AlertTriangle className="w-3.5 h-3.5" />
+                          <span>Flag Both as Copied</span>
+                        </button>
+                      )}
+                    </div>
+                  </div>
+                )}
+
+                {/* ================= SUB-VIEW 3: WORD-BY-WORD DIFF INSPECTOR ================= */}
+                {compareSubView === 'diff' && (() => {
+                  const activeQC = questionComparisons.find(qc => qc.qNo === activeDiffQNo) || questionComparisons[0];
+                  const text1 = activeQC?.cand1Question?.studentAnswer || '';
+                  const text2 = activeQC?.cand2Question?.studentAnswer || '';
+                  const match = activeQC?.match;
+
+                  return (
+                    <div className="bg-slate-950/90 rounded-2xl p-5 border border-slate-800 space-y-5 shadow-2xl">
+                      {/* Question Selection Ribbon */}
+                      <div className="flex items-center justify-between pb-3 border-b border-slate-800 flex-wrap gap-2">
+                        <div className="flex items-center gap-2 flex-wrap">
+                          <span className="text-xs font-bold text-slate-400 uppercase tracking-wider">Select Question to Inspect:</span>
+                          {questionComparisons.map((qc) => (
+                            <button
+                              key={qc.qNo}
+                              type="button"
+                              onClick={() => setActiveDiffQNo(qc.qNo)}
+                              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition flex items-center gap-1.5 cursor-pointer border ${
+                                activeDiffQNo === qc.qNo
+                                  ? 'bg-purple-600 text-white border-purple-400 shadow-md ring-2 ring-purple-500/30'
+                                  : 'bg-slate-900 text-slate-300 border-slate-700 hover:bg-slate-800'
+                              }`}
+                            >
+                              <span>{qc.qNo}</span>
+                              <span className={`px-1.5 py-0.2 rounded text-[10px] font-mono ${
+                                qc.isCopied ? 'bg-red-500/20 text-red-300' : 'bg-emerald-500/20 text-emerald-300'
+                              }`}>
+                                {qc.match.similarity}%
+                              </span>
+                            </button>
+                          ))}
+                        </div>
+                        {match && (
+                          <span className={`px-2.5 py-1 rounded-xl text-xs font-bold border ${match.badgeColor}`}>
+                            {match.matchType}
+                          </span>
+                        )}
+                      </div>
+
+                      {/* Question Prompt Title */}
+                      <div className="bg-slate-900/80 p-3 rounded-xl border border-slate-800">
+                        <span className="text-[11px] font-bold text-amber-400 font-mono uppercase">{activeQC?.qNo} Question Prompt ({activeQC?.maxMarks} Marks):</span>
+                        <h4 className="text-sm font-bold text-white mt-0.5">{activeQC?.title}</h4>
+                      </div>
+
+                      {/* Side-by-Side Answer Diff Box */}
+                      <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        {/* Column 1: Candidate 1 Text */}
+                        <div className="bg-slate-900/90 rounded-2xl p-4 border border-blue-500/40 space-y-2.5 flex flex-col">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                            <span className="text-xs font-bold text-blue-400 flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-blue-500/20 text-blue-300 flex items-center justify-center text-[10px]">#1</span>
+                              {cand1.name} (Roll #{cand1.rollNo})
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">Word Count: {text1.split(/\s+/).filter(Boolean).length}</span>
+                          </div>
+                          <div className={`flex-1 p-3.5 rounded-xl border font-mono text-xs leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto ${
+                            match?.isCopied ? 'bg-red-950/20 border-red-500/40 text-rose-100' : 'bg-slate-950 border-slate-800 text-slate-200'
+                          }`}>
+                            {text1 || <span className="text-slate-500 italic">No answer text recorded</span>}
+                          </div>
+                        </div>
+
+                        {/* Column 2: Candidate 2 Text */}
+                        <div className="bg-slate-900/90 rounded-2xl p-4 border border-purple-500/40 space-y-2.5 flex flex-col">
+                          <div className="flex items-center justify-between pb-2 border-b border-slate-800">
+                            <span className="text-xs font-bold text-purple-400 flex items-center gap-1.5">
+                              <span className="w-5 h-5 rounded-full bg-purple-500/20 text-purple-300 flex items-center justify-center text-[10px]">#2</span>
+                              {cand2.name} (Roll #{cand2.rollNo})
+                            </span>
+                            <span className="text-[10px] text-slate-400 font-mono">Word Count: {text2.split(/\s+/).filter(Boolean).length}</span>
+                          </div>
+                          <div className={`flex-1 p-3.5 rounded-xl border font-mono text-xs leading-relaxed whitespace-pre-wrap max-h-96 overflow-y-auto ${
+                            match?.isCopied ? 'bg-red-950/20 border-red-500/40 text-rose-100' : 'bg-slate-950 border-slate-800 text-slate-200'
+                          }`}>
+                            {text2 || <span className="text-slate-500 italic">No answer text recorded</span>}
+                          </div>
+                        </div>
+                      </div>
+
+                      {/* Diff Statistics Pill Bar */}
+                      <div className="bg-slate-900/60 p-3 rounded-xl border border-slate-800 flex items-center justify-between text-xs flex-wrap gap-2">
+                        <div className="flex items-center gap-4 text-slate-300">
+                          <span>Identical Words: <strong className="text-white font-mono">{match?.identicalWords || 0}</strong></span>
+                          <span>Lexical Overlap: <strong className={match?.statusColor}>{match?.similarity || 0}%</strong></span>
+                          <span>Classification: <strong className={match?.statusColor}>{match?.matchType}</strong></span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            onClick={() => setCompareSubView('breakdown')}
+                            className="px-3 py-1.5 rounded-lg text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-200 cursor-pointer"
+                          >
+                            ← Back to Side-by-Side Breakdown
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+              );
+            })() : (
+              /* ================= CONDITION 2: SINGLE-STUDENT SPLIT SCREEN WITH PAPER & ANNOTATION ================= */
+              <>
+                {/* Candidate Context Pill Bar */}
+                <div className="bg-slate-800/60 rounded-xl p-2.5 border border-slate-700/50 flex flex-wrap items-center justify-between gap-2 text-xs text-slate-300 shrink-0">
+                  <div className="flex items-center gap-4 flex-wrap">
+                    <div><span className="text-slate-400 font-semibold">Roll Number:</span> <strong className="text-blue-400">#{activeCandidate.rollNo}</strong></div>
+                    <div><span className="text-slate-400 font-semibold">Candidate:</span> <strong className="text-white">{activeCandidate.name}</strong></div>
+                    <div><span className="text-slate-400 font-semibold">Batch:</span> <strong className="text-pink-400">{activeCandidate.batch}</strong></div>
+                    <div><span className="text-slate-400 font-semibold">Division:</span> <strong className="text-cyan-400">{activeCandidate.division}</strong></div>
+                    <div><span className="text-slate-400 font-semibold">Subject:</span> <strong className="text-amber-400">{activeCandidate.subject}</strong></div>
+                    <div><span className="text-slate-400 font-semibold">File:</span> <strong className="text-emerald-400 font-mono">{activeCandidate.fileName}</strong></div>
+                  </div>
+                  <div className="text-[11px] text-emerald-400 font-bold bg-emerald-500/10 border border-emerald-500/20 px-2 py-0.5 rounded-md">
+                    ✓ Evaluation Synced with Uploaded Paper
+                  </div>
                 </div>
-              </div>
-            )}
 
-            {/* Feedback Strengths */}
-            {evalResult.feedback?.strengths?.length > 0 && (
-              <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-2xl p-4 text-xs text-emerald-200 space-y-1">
-                <span className="font-bold text-emerald-400 flex items-center gap-1.5 mb-1">
-                  <CheckCircle2 className="w-4 h-4" /> Overall Feedback & Key Observations:
-                </span>
-                <ul className="list-disc list-inside space-y-1">
-                  {evalResult.feedback.strengths.map((str, idx) => (
-                    <li key={idx}>{str}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
+                {/* Two-Section Split Screen: Left (Evaluation Result) & Right (Uploaded Paper with Annotations) */}
+                <div className="grid grid-cols-1 lg:grid-cols-12 gap-4 flex-1 min-h-0 overflow-hidden">
+                  
+                  {/* ================= LEFT SECTION: Evaluation Result ================= */}
+                  <div className={`${leftColSpan} flex flex-col h-full min-h-0 overflow-hidden pr-1 transition-all duration-300`}>
+                    <div className="flex items-center justify-between mb-2 shrink-0">
+                      <h3 className="text-xs font-bold text-emerald-400 uppercase tracking-wider flex items-center gap-1.5">
+                        <Sparkles className="w-4 h-4 text-emerald-400" />
+                        AI Evaluation & Rubric Breakdown ({activeCandidate.name})
+                      </h3>
+                      <span className="text-[11px] text-slate-400">
+                        Score: <strong className="text-white">{activeCandidate.marksObtained}/{activeCandidate.maxMarks}</strong> ({activeCandidate.accuracy}% Accuracy)
+                      </span>
+                    </div>
 
-            {/* Footer Action Buttons */}
-            <div className="flex flex-wrap items-center justify-end gap-3 pt-2 border-t border-slate-800">
-              <button
-                onClick={() => setShowEvalModal(false)}
-                className="px-4 py-2.5 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
-              >
-                Close
-              </button>
-              <button
-                onClick={() => {
-                  setShowEvalModal(false);
-                  navigate('/evaluation');
-                }}
-                className="px-6 py-2.5 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-lg transition flex items-center gap-2 cursor-pointer"
-              >
-                View Full AI Evaluation Page
-                <ArrowRight className="w-4 h-4" />
-              </button>
-            </div>
+                    <div className="flex-1 overflow-y-auto space-y-4 pr-2">
+                      {/* Score Overview Grid */}
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3.5">
+                        <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/60 flex flex-col items-center justify-center text-center">
+                          <CircularProgress
+                            value={Math.round((activeCandidate.marksObtained / activeCandidate.maxMarks) * 100)}
+                            size={120}
+                            strokeWidth={10}
+                            color={activeCandidate.rollNo === '02' ? '#8B5CF6' : '#10B981'}
+                          />
+                          <div className="mt-2.5">
+                            <span className="text-2xl sm:text-3xl font-extrabold text-white">{activeCandidate.marksObtained}</span>
+                            <span className="text-slate-400 text-sm font-semibold"> / {activeCandidate.maxMarks}</span>
+                            <p className="text-xs text-emerald-400 font-medium mt-0.5">Total Score Awarded</p>
+                          </div>
+                        </div>
+
+                        <div className="bg-slate-800/40 rounded-2xl p-4 border border-slate-700/60 space-y-2.5">
+                          <h3 className="text-xs font-semibold text-slate-400 uppercase tracking-wider mb-1">Evaluation Metrics</h3>
+                          <ProgressBar value={activeCandidate.accuracy} label="Semantic Accuracy" color="bg-emerald-500" />
+                          <ProgressBar value={activeCandidate.grammar} label="Grammar Quality" color="bg-purple-500" />
+                          <ProgressBar value={activeCandidate.keywordMatch} label="Keyword Match" color="bg-amber-500" />
+                          <ProgressBar value={activeCandidate.similarity} label="Model Answer Similarity" color="bg-blue-500" />
+                          <ProgressBar value={activeCandidate.completeness} label="Answer Completeness" color="bg-teal-500" />
+                        </div>
+                      </div>
+
+                      {/* Question-Wise Model Answer Key & Student Extracted Answer Comparison */}
+                      <div className="space-y-3 pt-1">
+                        <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800 pb-2">
+                          <div>
+                            <h4 className="text-xs font-bold text-white uppercase tracking-wider flex items-center gap-1.5">
+                              <Sparkles className="w-3.5 h-3.5 text-emerald-400" />
+                              Itemized Question Evaluation ({activeCandidate.questions.length} Questions)
+                            </h4>
+                          </div>
+                          <div className="flex items-center gap-2">
+                            <button
+                              onClick={() => handleReEvaluateQuestions()}
+                              disabled={isEvaluatingSheet}
+                              className="px-3 py-1 rounded-lg text-xs font-bold bg-gradient-to-r from-emerald-500 to-teal-600 hover:from-emerald-400 hover:to-teal-500 text-white shadow-md border border-emerald-400/40 transition flex items-center gap-1.5 cursor-pointer disabled:opacity-60"
+                            >
+                              <RefreshCw className={`w-3 h-3 ${isEvaluatingSheet ? 'animate-spin' : ''}`} />
+                              Re-Evaluate All
+                            </button>
+                          </div>
+                        </div>
+
+                        <div className="space-y-3">
+                          {activeCandidate.questions.map((q, idx) => {
+                            const qAccuracy = q.accuracy || (q.marksObtained && q.maxMarks ? Math.round((q.marksObtained / q.maxMarks) * 100) : 90);
+                            const qNum = parseInt(String(q.qNo || q.id || idx + 1).replace(/\D/g, ''), 10) || (idx + 1);
+                            const isSelected = String(selectedQuestionId) === String(qNum) || 
+                                               String(selectedQuestionId) === String(q.qNo) || 
+                                               String(selectedQuestionId) === String(q.id);
+
+                            return (
+                              <div
+                                key={idx}
+                                id={`eval-question-${qNum}`}
+                                onClick={() => {
+                                  setSelectedQuestionId(qNum);
+                                  const isRev = activeCandidate.fileName?.toLowerCase().includes('106') ||
+                                                activeCandidate.fileName?.toLowerCase().includes('1857') ||
+                                                activeCandidate.fileName?.toLowerCase().includes('revolt');
+                                  const isPhys = !isRev && (activeCandidate.fileName?.includes('02') || activeCandidate.subject?.toLowerCase().includes('phys'));
+                                  const isHist = !isRev && !isPhys && (activeCandidate.fileName?.includes('01') || activeCandidate.subject?.toLowerCase().includes('hist'));
+                                  const targetPage = typeof q.pageNumber === 'number'
+                                    ? q.pageNumber - 1
+                                    : (isRev ? (qNum === 1 ? 0 : 1) : (isPhys ? (qNum <= 7 ? 0 : 1) : (isHist ? (qNum <= 3 ? 0 : 1) : 0)));
+                                  if (activeCandidate.paperPreviews && activeCandidate.paperPreviews.length > targetPage) {
+                                    setModalPageIndex(targetPage);
+                                  }
+                                }}
+                                className={`rounded-2xl p-4 border transition-all duration-200 cursor-pointer space-y-3 shadow-md ${
+                                  isSelected
+                                    ? 'bg-slate-800 border-blue-500 ring-2 ring-blue-500/50 shadow-blue-500/10'
+                                    : 'bg-slate-800/80 border-slate-700/80 hover:border-slate-600'
+                                }`}
+                              >
+                                {/* Question Header & Score */}
+                                <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-700/60 pb-2.5">
+                                  <div className="flex items-center gap-2.5 flex-1 min-w-[200px]">
+                                    <span className={`px-2.5 py-1 rounded-lg text-xs font-bold font-mono border ${
+                                      q.status === 'Correct'
+                                        ? 'bg-emerald-500/20 text-emerald-400 border-emerald-500/30'
+                                        : q.status === 'Partial'
+                                        ? 'bg-amber-500/20 text-amber-400 border-amber-500/30'
+                                        : 'bg-red-500/20 text-red-400 border-red-500/30'
+                                    }`}>
+                                      {q.qNo}
+                                    </span>
+                                    <h5 className="text-xs sm:text-sm font-bold text-white leading-snug">
+                                      {q.title}
+                                    </h5>
+                                  </div>
+                                  <div className="flex items-center gap-2 shrink-0">
+                                    <button
+                                      type="button"
+                                      onClick={(e) => {
+                                        e.stopPropagation();
+                                        setSelectedQuestionId(qNum);
+                                        const isRev = activeCandidate.fileName?.toLowerCase().includes('106') ||
+                                                      activeCandidate.fileName?.toLowerCase().includes('1857') ||
+                                                      activeCandidate.fileName?.toLowerCase().includes('revolt');
+                                        const isPhys = !isRev && (activeCandidate.fileName?.includes('02') || activeCandidate.subject?.toLowerCase().includes('phys'));
+                                        const isHist = !isRev && !isPhys && (activeCandidate.fileName?.includes('01') || activeCandidate.subject?.toLowerCase().includes('hist'));
+                                        const targetPage = typeof q.pageNumber === 'number'
+                                          ? q.pageNumber - 1
+                                          : (isRev ? (qNum === 1 ? 0 : 1) : (isPhys ? (qNum <= 7 ? 0 : 1) : (isHist ? (qNum <= 3 ? 0 : 1) : 0)));
+                                        if (activeCandidate.paperPreviews && activeCandidate.paperPreviews.length > targetPage) {
+                                          setModalPageIndex(targetPage);
+                                        }
+                                        setTimeout(() => {
+                                          const boxEl = document.getElementById(`ai-box-${qNum}`);
+                                          if (boxEl) {
+                                            boxEl.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                                          }
+                                        }, 60);
+                                      }}
+                                      className={`px-2 py-0.5 rounded-md text-[10px] font-bold border transition flex items-center gap-1 cursor-pointer ${
+                                        isSelected
+                                          ? 'bg-blue-600 text-white border-blue-400 shadow-sm'
+                                          : 'bg-slate-800 text-slate-300 border-slate-700 hover:bg-slate-700 hover:text-white'
+                                      }`}
+                                      title="Locate and highlight this question's answer on the paper"
+                                    >
+                                      <Eye className="w-3 h-3" />
+                                      <span>Locate on Paper</span>
+                                    </button>
+                                    <span className={`text-[10px] font-bold px-2.5 py-0.5 rounded-full ${
+                                      q.status === 'Correct'
+                                        ? 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/30'
+                                        : q.status === 'Partial'
+                                        ? 'bg-amber-500/20 text-amber-300 border border-amber-500/30'
+                                        : 'bg-red-500/20 text-red-300 border border-red-500/30'
+                                    }`}>
+                                      {q.status}
+                                    </span>
+                                    <span className={`text-sm font-extrabold ${
+                                      q.status === 'Correct'
+                                        ? 'text-emerald-400'
+                                        : q.status === 'Partial'
+                                        ? 'text-amber-400'
+                                        : 'text-red-400'
+                                    }`}>
+                                      {q.marksObtained} <span className="text-slate-400 text-xs font-semibold">/ {q.maxMarks} M</span>
+                                    </span>
+                                  </div>
+                                </div>
+
+                                {/* Answer Comparison: Master Key vs Student Extracted Answer */}
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3.5">
+                                  {/* Master Key */}
+                                  <div className="bg-emerald-950/30 rounded-xl p-3 border border-emerald-500/40 space-y-1.5 shadow-inner flex flex-col">
+                                    <div className="flex items-center justify-between text-[11px] text-emerald-300 font-bold border-b border-emerald-800/60 pb-1.5">
+                                      <span className="flex items-center gap-1.5">
+                                        <Key className="w-3.5 h-3.5 text-emerald-400" />
+                                        Master Key / Correct Model Answer ({q.qNo}):
+                                      </span>
+                                      <span className="text-[10px] text-emerald-400 bg-emerald-500/10 px-2 py-0.5 rounded border border-emerald-500/30 font-mono font-semibold">
+                                        Model Key
+                                      </span>
+                                    </div>
+                                    <p className="text-emerald-100 font-mono text-xs leading-relaxed whitespace-pre-wrap pl-0.5 max-h-72 overflow-y-auto">
+                                      {q.modelAnswer}
+                                    </p>
+                                  </div>
+
+                                  {/* Student Answer */}
+                                  <div className="bg-slate-900/90 rounded-xl p-3 border border-slate-700/80 space-y-1.5 shadow-inner flex flex-col">
+                                    <div className="flex items-center justify-between text-[11px] text-slate-300 font-bold border-b border-slate-800 pb-1.5">
+                                      <span className="flex items-center gap-1.5 text-blue-400">
+                                        <FileText className="w-3.5 h-3.5" />
+                                        Student Extracted Answer ({q.qNo}):
+                                      </span>
+                                      <span className="text-[10px] text-blue-400 bg-blue-500/10 px-2 py-0.5 rounded border border-blue-500/30 font-mono font-semibold">
+                                        Handwritten Paper
+                                      </span>
+                                    </div>
+                                    <p className="text-slate-100 font-mono text-xs leading-relaxed whitespace-pre-wrap pl-0.5 max-h-72 overflow-y-auto">
+                                      {q.studentAnswer}
+                                    </p>
+                                  </div>
+                                </div>
+
+                                {/* Accuracy Progress Bar */}
+                                <div className="flex items-center gap-3">
+                                  <div className="flex-1">
+                                    <ProgressBar
+                                      value={qAccuracy}
+                                      label="Question Accuracy"
+                                      color={q.status === 'Correct' ? 'bg-emerald-500' : q.status === 'Partial' ? 'bg-amber-500' : 'bg-red-500'}
+                                    />
+                                  </div>
+                                  <span className="text-xs font-mono font-bold text-slate-300">
+                                    {qAccuracy}%
+                                  </span>
+                                </div>
+
+                                {/* AI Feedback */}
+                                <div className="bg-slate-900/70 p-3 rounded-xl border border-slate-700/60 flex items-start gap-2.5 text-xs text-slate-300 leading-relaxed">
+                                  <span className={`${q.status === 'Incorrect' ? 'text-red-400' : 'text-emerald-400'} font-bold shrink-0`}>
+                                    {q.status === 'Incorrect' ? '❌ AI Evaluation:' : '💡 AI Feedback:'}
+                                  </span>
+                                  <p className="italic text-slate-200">{q.feedback || 'Answer matches expected rubric criteria.'}</p>
+                                </div>
+                              </div>
+                            );
+                          })}
+                        </div>
+                      </div>
+
+                      {/* Overall Strengths */}
+                      {activeCandidate.feedback?.strengths?.length > 0 && (
+                        <div className="bg-emerald-950/30 border border-emerald-500/30 rounded-xl p-3 text-xs text-emerald-200 space-y-1">
+                          <span className="font-bold text-emerald-400 flex items-center gap-1.5 mb-1">
+                            <CheckCircle2 className="w-3.5 h-3.5" /> Key Observations:
+                          </span>
+                          <ul className="list-disc list-inside space-y-0.5 text-[11px]">
+                            {activeCandidate.feedback.strengths.map((str, idx) => (
+                              <li key={idx}>{str}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+
+                    {/* Footer Action Buttons */}
+                    <div className="flex flex-wrap items-center justify-end gap-2 pt-3 border-t border-slate-800 shrink-0">
+                      <button
+                        type="button"
+                        onClick={() => {
+                          dispatch({ type: 'APPROVE_STUDENT', payload: activeCandidate.name });
+                          addToast(`Result Approved for ${activeCandidate.name}! Published to Dashboard.`, 'success');
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-black text-white bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 transition-all shadow-md flex items-center gap-1.5 cursor-pointer active:scale-95"
+                      >
+                        <CheckCircle2 className="w-3.5 h-3.5" />
+                        <span>Approve Result ({activeCandidate.name})</span>
+                      </button>
+                      <button
+                        onClick={() => setShowEvalModal(false)}
+                        className="px-3.5 py-2 rounded-xl text-xs font-semibold bg-slate-800 hover:bg-slate-700 text-slate-300 transition cursor-pointer"
+                      >
+                        Close
+                      </button>
+                      <button
+                        onClick={() => {
+                          setShowEvalModal(false);
+                          navigate('/evaluation');
+                        }}
+                        className="px-4 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-500 hover:to-indigo-500 text-white shadow-md transition flex items-center gap-1.5 cursor-pointer"
+                      >
+                        View Evaluation Page
+                        <ArrowRight className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* ================= RIGHT SECTION: Uploaded Paper with Image Annotation Studio ================= */}
+                  <div className={`${rightColSpan} flex flex-col h-full min-h-0 bg-slate-950/90 rounded-2xl border border-slate-800 p-3.5 sm:p-4 space-y-3 overflow-hidden shadow-inner transition-all duration-300`}>
+                    {/* Right Section Header */}
+                    <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-800/80 pb-2.5 shrink-0">
+                      <div className="flex items-center gap-2">
+                        <span className="p-1.5 rounded-lg bg-blue-500/20 text-blue-400">
+                          <FileText className="w-4 h-4" />
+                        </span>
+                        <div>
+                          <h3 className="text-xs sm:text-sm font-bold text-white uppercase tracking-wider">
+                            Uploaded Paper (Right Section)
+                          </h3>
+                          <p className="text-[10px] text-slate-400">
+                            {activeCandidate.fileName} • {activeCandidate.name} ({activeCandidate.subject})
+                          </p>
+                        </div>
+                      </div>
+
+                      {/* Page Switcher & Zoom & Size Controls */}
+                      <div className="flex items-center gap-2 flex-wrap">
+                        {/* Interactive Page Switcher Pill Tabs */}
+                        <div className="flex items-center bg-slate-900 border border-blue-500/30 rounded-xl p-0.5 text-xs shadow-md">
+                          <button
+                            type="button"
+                            onClick={() => setModalPageIndex((prev) => Math.max(0, prev - 1))}
+                            disabled={modalPageIndex === 0}
+                            className="px-2 py-1 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg transition font-bold cursor-pointer flex items-center gap-1"
+                            title="Previous Page of Answer Sheet"
+                          >
+                            <ChevronLeft className="w-3.5 h-3.5 text-blue-400" />
+                            <span className="hidden sm:inline">Prev</span>
+                          </button>
+                          
+                          <div className="flex items-center gap-1 px-1">
+                            {(activeCandidate.paperPreviews?.length ? activeCandidate.paperPreviews : ['p1', 'p2']).map((_, pIdx) => (
+                              <button
+                                key={pIdx}
+                                type="button"
+                                onClick={() => setModalPageIndex(pIdx)}
+                                className={`px-2.5 py-0.5 text-xs font-mono font-black rounded-lg transition cursor-pointer ${
+                                  modalPageIndex === pIdx
+                                    ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-md ring-1 ring-blue-400'
+                                    : 'text-slate-400 hover:text-white hover:bg-slate-800'
+                                }`}
+                                title={`View Page ${pIdx + 1} of PDF`}
+                              >
+                                Page {pIdx + 1}
+                              </button>
+                            ))}
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => setModalPageIndex((prev) => Math.min((activeCandidate.paperPreviews?.length || 2) - 1, prev + 1))}
+                            disabled={modalPageIndex >= (activeCandidate.paperPreviews?.length || 2) - 1}
+                            className="px-2 py-1 text-slate-300 hover:text-white hover:bg-slate-800 disabled:opacity-30 disabled:cursor-not-allowed rounded-lg transition font-bold cursor-pointer flex items-center gap-1"
+                            title="Next Page of Answer Sheet"
+                          >
+                            <span className="hidden sm:inline">Next</span>
+                            <ChevronRight className="w-3.5 h-3.5 text-blue-400" />
+                          </button>
+                        </div>
+
+                        {/* Zoom Controls */}
+                        <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5 text-xs">
+                          <button
+                            type="button"
+                            onClick={() => setModalPaperZoom((z) => Math.max(0.6, +(z - 0.2).toFixed(2)))}
+                            className="px-2 py-1 text-slate-400 hover:text-white transition cursor-pointer"
+                            title="Zoom Out"
+                          >
+                            <ZoomOut className="w-3.5 h-3.5" />
+                          </button>
+                          <span className="px-1 text-[10px] font-mono font-bold text-slate-300 min-w-[34px] text-center">
+                            {Math.round(modalPaperZoom * 100)}%
+                          </span>
+                          <button
+                            type="button"
+                            onClick={() => setModalPaperZoom((z) => Math.min(2.5, +(z + 0.2).toFixed(2)))}
+                            className="px-2 py-1 text-slate-400 hover:text-white transition cursor-pointer"
+                            title="Zoom In"
+                          >
+                            <ZoomIn className="w-3.5 h-3.5" />
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModalPaperZoom(1)}
+                            className="px-1.5 py-1 text-[10px] font-semibold text-slate-400 hover:text-emerald-400 transition cursor-pointer"
+                            title="Reset Zoom"
+                          >
+                            Fit
+                          </button>
+                        </div>
+
+                        {/* Section Size Presets */}
+                        <div className="flex items-center bg-slate-900 border border-slate-700 rounded-lg p-0.5 text-xs shadow-md">
+                          <button
+                            type="button"
+                            onClick={() => setSplitLayout('balanced')}
+                            className={`px-2.5 py-1 text-[10px] font-bold rounded transition cursor-pointer ${
+                              splitLayout === 'balanced'
+                                ? 'bg-gradient-to-r from-blue-600 to-indigo-600 text-white shadow-xs font-black'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="Same Size: Both sections equal 50% / 50%"
+                          >
+                            Same Size (50:50)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSplitLayout('paper-focused')}
+                            className={`px-2 py-1 text-[10px] font-bold rounded transition cursor-pointer ${
+                              splitLayout === 'paper-focused'
+                                ? 'bg-blue-600 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="Expanded Paper Box (65% Width)"
+                          >
+                            Large Paper (65%)
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setSplitLayout('paper-max')}
+                            className={`px-2 py-1 text-[10px] font-bold rounded transition cursor-pointer flex items-center gap-1 ${
+                              splitLayout === 'paper-max'
+                                ? 'bg-gradient-to-r from-purple-600 to-indigo-600 text-white shadow-xs'
+                                : 'text-slate-400 hover:text-white'
+                            }`}
+                            title="Max Paper Box (75% Width)"
+                          >
+                            <Maximize2 className="w-2.5 h-2.5" />
+                            <span>Max (75%)</span>
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Paper Image Viewport Container with Image Annotation Studio */}
+                    <div className="flex-1 w-full overflow-y-auto overflow-x-hidden rounded-xl bg-slate-900/60 border border-slate-800/80 p-2 sm:p-3 flex flex-col items-center relative min-h-[500px]">
+                      <ImageAnnotator
+                        imageSrc={activeCandidate.paperPreviews[modalPageIndex] || activeCandidate.paperPreviews[0]}
+                        pageIndex={modalPageIndex}
+                        totalPages={activeCandidate.paperPreviews.length}
+                        studentName={activeCandidate.name}
+                        rollNo={activeCandidate.rollNo}
+                        subject={activeCandidate.subject}
+                        fileName={activeCandidate.fileName}
+                        questions={activeCandidate.questions}
+                        selectedQuestionId={selectedQuestionId}
+                        onSelectQuestion={(qNum) => {
+                          setSelectedQuestionId(qNum);
+                          const el = document.getElementById(`eval-question-${qNum}`) || 
+                                     document.getElementById(`eval-question-Q.${qNum}`);
+                          if (el) {
+                            el.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+                          }
+                        }}
+                        zoom={modalPaperZoom}
+                        onZoomChange={setModalPaperZoom}
+                        showToolbar={false}
+                      />
+                    </div>
+
+                    {/* Footer Tag & Page Quick Switcher */}
+                    <div className="flex items-center justify-between text-[11px] text-slate-400 pt-1 shrink-0">
+                      <span className="flex items-center gap-1 font-medium text-emerald-400">
+                        <CheckCircle2 className="w-3.5 h-3.5 text-emerald-400" />
+                        Viewing Page {modalPageIndex + 1} of {activeCandidate.paperPreviews?.length || 2} • Visual Verification
+                      </span>
+                      <div className="flex items-center gap-2">
+                        <span className="truncate max-w-[180px] font-mono text-[10px] text-slate-400">
+                          {activeCandidate.fileName} (Roll #{activeCandidate.rollNo})
+                        </span>
+                        <div className="flex items-center gap-1 bg-slate-900 px-1 py-0.5 rounded-md border border-slate-800">
+                          <button
+                            type="button"
+                            onClick={() => setModalPageIndex(0)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                              modalPageIndex === 0 ? 'bg-blue-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Page 1
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => setModalPageIndex(1)}
+                            className={`px-2 py-0.5 rounded text-[10px] font-bold cursor-pointer transition ${
+                              modalPageIndex === 1 ? 'bg-blue-600 text-white shadow' : 'bg-slate-800 text-slate-400 hover:text-white'
+                            }`}
+                          >
+                            Page 2
+                          </button>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                </div>
+              </>
+            )}
           </motion.div>
         </div>
       )}

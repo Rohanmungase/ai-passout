@@ -66,147 +66,40 @@ export function useEvaluation() {
         confidence: avgConfidence,
         wordCount: totalWords,
         processingTime: totalTime,
+        fileResults: results,
       };
 
-      // Check if file names contain explicit student names (e.g. Priya Joshi.pdf, Aarav Sharma.pdf)
-      let fileDetectedStudent = null;
-      if (files && files.length > 0) {
-        files.forEach(f => {
-          const fname = (typeof f === 'string' ? f : f?.name || '').toLowerCase();
-          if (fname.includes('priya')) {
-            fileDetectedStudent = {
-              name: 'Priya Joshi',
-              rollNo: '02',
-              className: 'Second Year',
-              division: 'A',
-              collegeName: 'MIT College',
-              subject: 'HISTORY'
-            };
-          } else if (fname.includes('aarav')) {
-            fileDetectedStudent = {
-              name: 'Aarav Sharma',
-              rollNo: '01',
-              className: 'Second Year',
-              division: 'A',
-              collegeName: 'MIT College',
-              subject: 'HISTORY'
-            };
-          }
-        });
+      // Detect subject from text if not set
+      let detectedSubject = state.studentInfo?.subject;
+      if (!detectedSubject) {
+        if (combinedText.includes('GEOGRAPHY') || combinedText.includes('Geography') || combinedText.includes('structure of the Earth')) {
+          detectedSubject = 'GEOGRAPHY';
+        } else if (combinedText.includes('DBMS') || combinedText.includes('DATABASE MANAGEMENT')) {
+          detectedSubject = 'DATABASE MANAGEMENT SYSTEM (DBMS)';
+        } else if (combinedText.includes('COMPUTER SCIENCE') || combinedText.includes('RAM and ROM')) {
+          detectedSubject = 'COMPUTER SCIENCE';
+        } else if (combinedText.includes('SCIENCE') || combinedText.includes('photosynthesis') || combinedText.includes('Newton')) {
+          detectedSubject = 'SCIENCE';
+        } else if (combinedText.includes('MATHEMATICS') || combinedText.includes('2x²')) {
+          detectedSubject = 'MATHEMATICS';
+        } else if (combinedText.includes('HISTORY') || combinedText.includes('Non-Cooperation Movement')) {
+          detectedSubject = 'HISTORY';
+        }
       }
 
-      if (fileDetectedStudent) {
-        dispatch({ type: 'UPDATE_STUDENT_INFO', payload: fileDetectedStudent });
-      } else if (combinedText.includes('GEOGRAPHY') || combinedText.includes('Geography') || combinedText.includes('structure of the Earth') || combinedText.includes('formation of soil') || combinedText.includes('natural vegetation')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'AARAV SHARMA',
-            rollNo: '01',
-            className: 'SECOND YEAR',
-            division: 'A',
-            collegeName: 'MIT COLLEGE',
-            subject: 'GEOGRAPHY'
-          }
-        });
-      } else if (combinedText.includes('DBMS') || combinedText.includes('DATABASE MANAGEMENT') || combinedText.includes('data abstraction') || combinedText.includes('ER diagram') || combinedText.includes('Primary Key') || combinedText.includes('normalization')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'AARAV SHARMA',
-            rollNo: '01',
-            className: 'SECOND YEAR',
-            division: 'A',
-            collegeName: 'MIT COLLEGE',
-            subject: 'DATABASE MANAGEMENT SYSTEM (DBMS)'
-          }
-        });
-      } else if (combinedText.includes('COMPUTER SCIENCE') || combinedText.includes('RAM and ROM') || combinedText.includes('Operating System') || combinedText.includes('generations of computers') || combinedText.includes('Compiler') || combinedText.includes('Firewall')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'AARAV SHARMA',
-            rollNo: '01',
-            className: 'SECOND YEAR',
-            division: 'A',
-            collegeName: 'MIT COLLEGE',
-            subject: 'COMPUTER SCIENCE'
-          }
-        });
-      } else if (combinedText.includes('AARAV') || combinedText.includes('catalyst') || combinedText.includes('characteristics of life') || combinedText.includes('air pollution')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'AARAV SHARMA',
-            rollNo: '01',
-            className: 'SECOND YEAR',
-            division: 'A',
-            collegeName: 'MIT COLLEGE',
-            subject: 'SCIENCE'
-          }
-        });
-      } else if (combinedText.includes('PRIYA') || combinedText.includes('Priya') || combinedText.includes('Non-Cooperation Movement') || combinedText.includes('Plassey')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'Priya Joshi',
-            rollNo: '02',
-            className: 'Second Year',
-            division: 'A',
-            collegeName: 'MIT College',
-            subject: 'HISTORY'
-          }
-        });
-      } else if (combinedText.includes('OM') || combinedText.includes('Om') || combinedText.includes('non-conventional') || combinedText.includes('location of industries')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'Om',
-            rollNo: 'CS01',
-            className: 'Second Year',
-            division: 'A',
-            collegeName: 'MIT College',
-            subject: 'GEOGRAPHY'
-          }
-        });
-      } else if (combinedText.includes('SCIENCE') || combinedText.includes('photosynthesis') || combinedText.includes('Newton') || combinedText.includes('Ohm')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'Rohan Mungase',
-            rollNo: '20250829',
-            className: '10th (SSC)',
-            division: 'A',
-            collegeName: 'MIT College',
-            subject: 'SCIENCE'
-          }
-        });
-      } else if (combinedText.includes('MATHEMATICS') || combinedText.includes('2x²')) {
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: 'Rohan Mungase',
-            rollNo: '20250829',
-            className: '10th (SSC)',
-            division: 'A',
-            collegeName: 'MIT College',
-            subject: 'MATHEMATICS'
-          }
-        });
-      } else {
-        const dynamicHeader = extractHeaderFromText(combinedText);
-        dispatch({
-          type: 'UPDATE_STUDENT_INFO',
-          payload: {
-            name: dynamicHeader?.name || state.studentInfo?.name || 'Aarav Sharma',
-            rollNo: dynamicHeader?.rollNo || state.studentInfo?.rollNo || '01',
-            className: dynamicHeader?.className || state.studentInfo?.className || 'SECOND YEAR',
-            division: dynamicHeader?.division || state.studentInfo?.division || 'A',
-            collegeName: dynamicHeader?.collegeName || state.studentInfo?.collegeName || 'MIT COLLEGE',
-            subject: dynamicHeader?.subject || state.studentInfo?.subject || 'GENERAL'
-          }
-        });
-      }
+      // Only update missing fields in studentInfo without overwriting user selections
+      const dynamicHeader = extractHeaderFromText(combinedText);
+      const updatedInfo = {
+        name: state.studentInfo?.name || dynamicHeader?.name || '',
+        rollNo: state.studentInfo?.rollNo || dynamicHeader?.rollNo || '',
+        className: state.studentInfo?.className || dynamicHeader?.className || '',
+        division: state.studentInfo?.division || dynamicHeader?.division || '',
+        collegeName: state.studentInfo?.collegeName || dynamicHeader?.collegeName || '',
+        batch: state.studentInfo?.batch || '',
+        subject: detectedSubject || 'GENERAL'
+      };
+
+      dispatch({ type: 'UPDATE_STUDENT_INFO', payload: updatedInfo });
 
       dispatch({ type: 'SET_OCR_RESULT', payload: combinedResult });
       toast.success(`Text extracted successfully! (${totalWords} words, ${Math.round(avgConfidence * 100)}% confidence)`);

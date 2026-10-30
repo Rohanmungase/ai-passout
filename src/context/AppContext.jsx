@@ -34,6 +34,13 @@ export function safeSetLocalStorage(key, value) {
     try {
       localStorage.removeItem('ocrResult');
       localStorage.removeItem('tempUploads');
+      
+      // If it's savedAnswerKeys, strip previewUrl and try logging again!
+      if (key === 'savedAnswerKeys' && Array.isArray(value)) {
+         const stripped = value.map(k => ({ ...k, previewUrl: undefined }));
+         localStorage.setItem(key, JSON.stringify(stripped));
+         console.warn('Saved Answer Keys without PDF previews due to storage limits.');
+      }
     } catch (_) {}
   }
 }
@@ -117,6 +124,8 @@ export function reorderStudentsForUploadedPdfs(students, files = [], studentInfo
   }
 }
 
+export const DEFAULT_SAVED_ANSWER_KEYS = [];
+
 /** Initial state for the application */
 const initialState = {
   // Theme: 'light' or 'dark'
@@ -152,23 +161,72 @@ Ans. The Quit India Movement was started in 1917 by Bal Gangadhar Tilak. It dema
   maxMarks: 10,
 
   // Student Information for PDF reports & evaluation tracking
-  studentInfo: {
-    name: 'Rohan Mungase',
-    rollNo: '20250829',
-    className: '10th (SSC)',
-    division: 'Division A',
-    collegeName: 'MIT College',
-    subject: 'SCIENCE',
-  },
+  studentInfo: (() => {
+    try {
+      const saved = localStorage.getItem('studentInfo');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (parsed && typeof parsed === 'object') {
+          return {
+            state: parsed.state || localStorage.getItem('selectedState') || 'Maharashtra',
+            district: parsed.district || localStorage.getItem('selectedDistrict') || 'Pune',
+            center: parsed.center || '',
+            collegeName: parsed.collegeName || '',
+            standard: parsed.standard || '',
+            className: parsed.className || '',
+            division: parsed.division || '',
+            batch: parsed.batch || '',
+            rollNo: parsed.rollNo || '',
+            name: parsed.name || '',
+            subject: parsed.subject || '',
+          };
+        }
+      }
+    } catch {}
+    return {
+      state: localStorage.getItem('selectedState') || 'Maharashtra',
+      district: localStorage.getItem('selectedDistrict') || 'Pune',
+      center: '',
+      collegeName: '',
+      standard: '',
+      className: '',
+      division: '',
+      batch: '',
+      rollNo: '',
+      name: '',
+      subject: '',
+    };
+  })(),
 
-  // OMR State
+  // OMR State & Teacher Saved Answer Keys Repository
   omrResult: null,
   omrAnswerKey: null,
+  savedAnswerKeys: (() => {
+    try {
+      const saved = localStorage.getItem('savedAnswerKeys');
+      if (saved) {
+        const parsed = JSON.parse(saved);
+        if (Array.isArray(parsed)) {
+          // Filter out demo keys if present
+          return parsed.filter(k => !['key-dbms-a', 'key-ml-b', 'key-cn-c', 'key-math-d'].includes(k.id));
+        }
+      }
+    } catch {}
+    return [];
+  })(),
 
   // Settings
   settings: {
     aiModel: localStorage.getItem('aiModel') || 'gemini',
     ocrEngine: localStorage.getItem('ocrEngine') || 'tesseract',
+    strictnessMode: localStorage.getItem('strictnessMode') || 'standard',
+    icrMode: localStorage.getItem('icrMode') || 'neural',
+    anonymousMode: localStorage.getItem('anonymousMode') === 'true',
+    autoExportPdf: localStorage.getItem('autoExportPdf') === 'true',
+    confidenceThreshold: localStorage.getItem('confidenceThreshold') || '75',
+    autoRegrade: localStorage.getItem('autoRegrade') !== 'false',
+    stepCredit: localStorage.getItem('stepCredit') !== 'false',
+    soundFeedback: localStorage.getItem('soundFeedback') !== 'false',
   },
 
   // Toast notifications queue
@@ -183,47 +241,171 @@ Ans. The Quit India Movement was started in 1917 by Bal Gangadhar Tilak. It dema
 
   // Dashboard Data
   evaluationCount: 1,
-  colleges: JSON.parse(localStorage.getItem('colleges')) || [
-    { id: 1, name: "St. Xavier's College" },
-    { id: 2, name: "MIT College" },
-    { id: 3, name: "VIT College" },
-    { id: 4, name: "Pune University" },
-    { id: 5, name: "SPPU Affiliated College" },
-    { id: 6, name: "Government Polytechnic" },
-    { id: 7, name: "DY Patil College" },
-  ],
-  centers: JSON.parse(localStorage.getItem('centers')) || [
-    { id: 1, collegeId: 1, name: "Main Campus Center", location: "South Block" },
-    { id: 2, collegeId: 1, name: "Science Building", location: "North Block" },
-    { id: 3, collegeId: 2, name: "MIT Engineering Hub", location: "Kothrud" },
-  ],
-  students: (() => {
-    const saved = localStorage.getItem('students');
+  colleges: (() => {
+    const defaultColleges = [
+      // MAHARASHTRA - PUNE
+      { id: 2, name: "MIT College", code: "MIT", state: "Maharashtra", district: "Pune", location: "Kothrud, Pune", centersCount: 4, studentsCount: 2, subjectsCount: 16, examsCount: 36, defaultDept: "Computer Engineering", defaultSubject: "DBMS", avgScore: 82.1, passRate: 94.5 },
+      { id: 3, name: "VIT College", code: "VIT", state: "Maharashtra", district: "Pune", location: "Bibwewadi, Pune", centersCount: 3, studentsCount: 2, subjectsCount: 12, examsCount: 28, defaultDept: "Data Science", defaultSubject: "Machine Learning", avgScore: 76.5, passRate: 91.2 },
+      { id: 4, name: "Pune University", code: "SPPU", state: "Maharashtra", district: "Pune", location: "Ganeshkhind, Pune", centersCount: 6, studentsCount: 2, subjectsCount: 20, examsCount: 45, defaultDept: "Computer Engineering", defaultSubject: "Computer Networks", avgScore: 74.0, passRate: 88.7 },
+      { id: 5, name: "SPPU Affiliated College", code: "SAC", state: "Maharashtra", district: "Pune", location: "Shivajinagar, Pune", centersCount: 3, studentsCount: 2, subjectsCount: 10, examsCount: 22, defaultDept: "Information Technology", defaultSubject: "Web Technology", avgScore: 72.8, passRate: 86.4 },
+      { id: 6, name: "Government Polytechnic", code: "GPP", state: "Maharashtra", district: "Pune", location: "Model Colony, Pune", centersCount: 3, studentsCount: 2, subjectsCount: 9, examsCount: 18, defaultDept: "Electronics", defaultSubject: "Data Structures", avgScore: 71.5, passRate: 85.0 },
+      { id: 7, name: "DY Patil College", code: "DYP", state: "Maharashtra", district: "Pune", location: "Akurdi, Pune", centersCount: 4, studentsCount: 2, subjectsCount: 13, examsCount: 30, defaultDept: "Artificial Intelligence", defaultSubject: "Software Engineering", avgScore: 75.9, passRate: 90.1 },
+      { id: 8, name: "COEP Technological University", code: "COEP", state: "Maharashtra", district: "Pune", location: "Shivajinagar, Pune", centersCount: 5, studentsCount: 2, subjectsCount: 18, examsCount: 40, defaultDept: "Computer Engineering", defaultSubject: "Operating System", avgScore: 85.2, passRate: 97.8 },
+      { id: 9, name: "Symbiosis Institute of Tech", code: "SIT", state: "Maharashtra", district: "Pune", location: "Lavale, Pune", centersCount: 4, studentsCount: 2, subjectsCount: 12, examsCount: 26, defaultDept: "Data Science", defaultSubject: "Machine Learning", avgScore: 80.6, passRate: 93.4 },
+      { id: 10, name: "Fergusson College", code: "FC", state: "Maharashtra", district: "Pune", location: "FC Road, Pune", centersCount: 3, studentsCount: 2, subjectsCount: 11, examsCount: 24, defaultDept: "Computer Engineering", defaultSubject: "Data Structures", avgScore: 77.3, passRate: 92.0 },
+      { id: 11, name: "Modern College of Engineering", code: "MCOE", state: "Maharashtra", district: "Pune", location: "Off FC Road, Pune", centersCount: 3, studentsCount: 2, subjectsCount: 10, examsCount: 20, defaultDept: "Information Technology", defaultSubject: "Web Technology", avgScore: 73.1, passRate: 87.6 },
+      { id: 12, name: "PICT Pune", code: "PICT", state: "Maharashtra", district: "Pune", location: "Dhankawadi, Pune", centersCount: 2, studentsCount: 2, subjectsCount: 14, examsCount: 34, defaultDept: "Computer Engineering", defaultSubject: "DBMS", avgScore: 84.7, passRate: 96.9 },
+
+      // MAHARASHTRA - MUMBAI
+      { id: 1, name: "St. Xavier's College", code: "SXC", state: "Maharashtra", district: "Mumbai", location: "South Mumbai", centersCount: 5, studentsCount: 2, subjectsCount: 14, examsCount: 32, defaultDept: "Computer Engineering", defaultSubject: "Operating System", avgScore: 78.4, passRate: 92.5 },
+      { id: 13, name: "VJTI Mumbai", code: "VJTI", state: "Maharashtra", district: "Mumbai", location: "Matunga, Mumbai", centersCount: 4, studentsCount: 2, subjectsCount: 18, examsCount: 42, defaultDept: "Electrical Engineering", defaultSubject: "Control Systems", avgScore: 86.1, passRate: 98.2 },
+      { id: 14, name: "K.J. Somaiya College", code: "KJSCE", state: "Maharashtra", district: "Mumbai", location: "Vidyavihar, Mumbai", centersCount: 3, studentsCount: 2, subjectsCount: 14, examsCount: 30, defaultDept: "Information Technology", defaultSubject: "Cloud Computing", avgScore: 81.3, passRate: 93.8 },
+      { id: 15, name: "D.J. Sanghvi College of Engineering", code: "DJSCE", state: "Maharashtra", district: "Mumbai", location: "Vile Parle, Mumbai", centersCount: 3, studentsCount: 2, subjectsCount: 15, examsCount: 32, defaultDept: "Computer Science", defaultSubject: "Artificial Intelligence", avgScore: 83.5, passRate: 95.1 },
+
+      // MAHARASHTRA - NASHIK
+      { id: 16, name: "K.K. Wagh Institute of Engg", code: "KKWIEER", state: "Maharashtra", district: "Nashik", location: "Amrutdham, Nashik", centersCount: 3, studentsCount: 2, subjectsCount: 12, examsCount: 28, defaultDept: "Computer Engineering", defaultSubject: "Java Programming", avgScore: 76.8, passRate: 89.5 },
+      { id: 17, name: "MET Institute of Engineering", code: "MET-BKC", state: "Maharashtra", district: "Nashik", location: "Adgaon, Nashik", centersCount: 2, studentsCount: 2, subjectsCount: 10, examsCount: 22, defaultDept: "Mechanical", defaultSubject: "Thermodynamics", avgScore: 74.2, passRate: 87.0 },
+      { id: 18, name: "Sandip Institute of Tech & Research", code: "SITRC", state: "Maharashtra", district: "Nashik", location: "Mahiravani, Nashik", centersCount: 3, studentsCount: 2, subjectsCount: 11, examsCount: 25, defaultDept: "Civil Engineering", defaultSubject: "Structural Design", avgScore: 73.9, passRate: 86.2 },
+
+      // MAHARASHTRA - NAGPUR
+      { id: 19, name: "VNIT Nagpur", code: "VNIT", state: "Maharashtra", district: "Nagpur", location: "South Ambazari Road, Nagpur", centersCount: 5, studentsCount: 2, subjectsCount: 20, examsCount: 48, defaultDept: "Electronics Engineering", defaultSubject: "VLSI Design", avgScore: 87.4, passRate: 98.9 },
+      { id: 20, name: "Shri Ramdeobaba College of Engg", code: "RCOEM", state: "Maharashtra", district: "Nagpur", location: "Katol Road, Nagpur", centersCount: 4, studentsCount: 2, subjectsCount: 16, examsCount: 35, defaultDept: "Computer Science", defaultSubject: "Data Warehousing", avgScore: 81.9, passRate: 94.0 },
+
+      // MAHARASHTRA - CHHATRAPATI SAMBHAJINAGAR
+      { id: 21, name: "Government College of Engg Aurangabad", code: "GECA", state: "Maharashtra", district: "Chhatrapati Sambhajinagar", location: "Osmanpura, Sambhajinagar", centersCount: 3, studentsCount: 2, subjectsCount: 12, examsCount: 26, defaultDept: "Mechanical", defaultSubject: "Fluid Dynamics", avgScore: 75.1, passRate: 88.3 },
+
+      // MAHARASHTRA - THANE
+      { id: 22, name: "Thadomal Shahani Engg College", code: "TSEC", state: "Maharashtra", district: "Thane", location: "Bandra-Thane Region", centersCount: 3, studentsCount: 2, subjectsCount: 13, examsCount: 27, defaultDept: "Information Technology", defaultSubject: "Cyber Security", avgScore: 79.5, passRate: 92.1 },
+
+      // MAHARASHTRA - KOLHAPUR
+      { id: 23, name: "Walchand College of Engineering", code: "WCE", state: "Maharashtra", district: "Kolhapur", location: "Sangli-Kolhapur Border", centersCount: 4, studentsCount: 2, subjectsCount: 15, examsCount: 33, defaultDept: "Electrical Engineering", defaultSubject: "Power Systems", avgScore: 83.0, passRate: 95.4 },
+
+      // GUJARAT - AHMEDABAD
+      { id: 24, name: "Nirma University", code: "NIRMA", state: "Gujarat", district: "Ahmedabad", location: "SG Highway, Ahmedabad", centersCount: 4, studentsCount: 2, subjectsCount: 17, examsCount: 38, defaultDept: "Computer Engineering", defaultSubject: "Compiler Design", avgScore: 84.1, passRate: 96.0 },
+      { id: 25, name: "L.D. College of Engineering", code: "LDCE", state: "Gujarat", district: "Ahmedabad", location: "Navrangpura, Ahmedabad", centersCount: 5, studentsCount: 2, subjectsCount: 19, examsCount: 42, defaultDept: "Information Technology", defaultSubject: "Distributed Systems", avgScore: 82.5, passRate: 94.8 },
+
+      // GUJARAT - SURAT
+      { id: 26, name: "SVNIT Surat", code: "SVNIT", state: "Gujarat", district: "Surat", location: "Ichchhanath, Surat", centersCount: 4, studentsCount: 2, subjectsCount: 18, examsCount: 40, defaultDept: "Chemical Engineering", defaultSubject: "Heat Transfer", avgScore: 85.9, passRate: 97.2 },
+
+      // GUJARAT - VADODARA
+      { id: 27, name: "MSU Vadodara", code: "MSU", state: "Gujarat", district: "Vadodara", location: "Sayajiganj, Vadodara", centersCount: 4, studentsCount: 2, subjectsCount: 16, examsCount: 34, defaultDept: "Civil Engineering", defaultSubject: "Concrete Technology", avgScore: 78.9, passRate: 91.5 },
+
+      // GUJARAT - RAJKOT
+      { id: 28, name: "Marwadi University", code: "MU", state: "Gujarat", district: "Rajkot", location: "Morbi Road, Rajkot", centersCount: 3, studentsCount: 2, subjectsCount: 12, examsCount: 25, defaultDept: "Computer Science", defaultSubject: "Python Programming", avgScore: 76.2, passRate: 88.9 },
+
+      // KARNATAKA - BENGALURU
+      { id: 29, name: "RV College of Engineering", code: "RVCE", state: "Karnataka", district: "Bengaluru", location: "Mysore Road, Bengaluru", centersCount: 5, studentsCount: 2, subjectsCount: 22, examsCount: 46, defaultDept: "Computer Science", defaultSubject: "Design & Analysis of Algorithms", avgScore: 88.5, passRate: 99.1 },
+      { id: 30, name: "BMS College of Engineering", code: "BMSCE", state: "Karnataka", district: "Bengaluru", location: "Basavanagudi, Bengaluru", centersCount: 4, studentsCount: 2, subjectsCount: 18, examsCount: 40, defaultDept: "Information Science", defaultSubject: "Big Data Analytics", avgScore: 85.0, passRate: 96.5 },
+      { id: 31, name: "PES University", code: "PESU", state: "Karnataka", district: "Bengaluru", location: "Ring Road, Bengaluru", centersCount: 4, studentsCount: 2, subjectsCount: 20, examsCount: 44, defaultDept: "Artificial Intelligence", defaultSubject: "Deep Learning", avgScore: 86.8, passRate: 97.9 },
+
+      // KARNATAKA - MYSURU
+      { id: 32, name: "SJCE Mysuru", code: "SJCE", state: "Karnataka", district: "Mysuru", location: "Manasagangothri, Mysuru", centersCount: 3, studentsCount: 2, subjectsCount: 14, examsCount: 30, defaultDept: "Electronics & Comm", defaultSubject: "Signal Processing", avgScore: 81.4, passRate: 93.0 },
+
+      // KARNATAKA - HUBBALLI
+      { id: 33, name: "KLE Technological University", code: "KLE", state: "Karnataka", district: "Hubballi", location: "Vidyanagar, Hubballi", centersCount: 3, studentsCount: 2, subjectsCount: 13, examsCount: 28, defaultDept: "Robotics", defaultSubject: "Embedded Systems", avgScore: 79.8, passRate: 91.8 },
+
+      // KARNATAKA - MANGALURU
+      { id: 34, name: "NITK Surathkal", code: "NITK", state: "Karnataka", district: "Mangaluru", location: "Surathkal, Mangaluru", centersCount: 5, studentsCount: 2, subjectsCount: 22, examsCount: 50, defaultDept: "Computer Science", defaultSubject: "Distributed OS", avgScore: 89.2, passRate: 99.4 },
+
+      // DELHI - NEW DELHI / CENTRAL DELHI / SOUTH DELHI / NORTH DELHI
+      { id: 35, name: "IIT Delhi", code: "IITD", state: "Delhi", district: "New Delhi", location: "Hauz Khas, New Delhi", centersCount: 6, studentsCount: 2, subjectsCount: 25, examsCount: 60, defaultDept: "Computer Science", defaultSubject: "Advanced AI", avgScore: 91.5, passRate: 99.7 },
+      { id: 36, name: "Delhi Technological University", code: "DTU", state: "Delhi", district: "North Delhi", location: "Rohini, North Delhi", centersCount: 5, studentsCount: 2, subjectsCount: 22, examsCount: 52, defaultDept: "Software Engineering", defaultSubject: "Full Stack Dev", avgScore: 87.1, passRate: 98.3 },
+      { id: 37, name: "Jamia Millia Islamia", code: "JMI", state: "Delhi", district: "South Delhi", location: "Jamia Nagar, South Delhi", centersCount: 4, studentsCount: 2, subjectsCount: 16, examsCount: 36, defaultDept: "Electrical Engineering", defaultSubject: "Microprocessors", avgScore: 82.3, passRate: 94.1 },
+      { id: 38, name: "Maulana Azad National Inst", code: "MAMC", state: "Delhi", district: "Central Delhi", location: "Bahadur Shah Zafar Marg", centersCount: 3, studentsCount: 2, subjectsCount: 13, examsCount: 28, defaultDept: "Biomedical Engg", defaultSubject: "Bio-Informatics", avgScore: 80.9, passRate: 92.7 },
+
+      // TAMIL NADU - CHENNAI / COIMBATORE / MADURAI
+      { id: 39, name: "Anna University", code: "ANNA", state: "Tamil Nadu", district: "Chennai", location: "Guindy, Chennai", centersCount: 6, studentsCount: 2, subjectsCount: 24, examsCount: 55, defaultDept: "Computer Science", defaultSubject: "Parallel Computing", avgScore: 88.0, passRate: 98.6 },
+      { id: 40, name: "PSG College of Technology", code: "PSGTECH", state: "Tamil Nadu", district: "Coimbatore", location: "Peelamedu, Coimbatore", centersCount: 4, studentsCount: 2, subjectsCount: 18, examsCount: 40, defaultDept: "Production Engg", defaultSubject: "CAD/CAM", avgScore: 85.4, passRate: 96.8 },
+      { id: 41, name: "Thiagarajar College of Engg", code: "TCE", state: "Tamil Nadu", district: "Madurai", location: "Thiruparankundram, Madurai", centersCount: 3, studentsCount: 2, subjectsCount: 13, examsCount: 29, defaultDept: "Mechatronics", defaultSubject: "Sensor Networks", avgScore: 81.0, passRate: 93.2 },
+
+      // UTTAR PRADESH - NOIDA / LUCKNOW / KANPUR / VARANASI
+      { id: 42, name: "Amity University Noida", code: "AMITY", state: "Uttar Pradesh", district: "Noida", location: "Sector 125, Noida", centersCount: 5, studentsCount: 2, subjectsCount: 21, examsCount: 48, defaultDept: "Computer Science", defaultSubject: "Cloud Architecture", avgScore: 83.2, passRate: 95.0 },
+      { id: 43, name: "IET Lucknow", code: "IETL", state: "Uttar Pradesh", district: "Lucknow", location: "Sitapur Road, Lucknow", centersCount: 4, studentsCount: 2, subjectsCount: 15, examsCount: 34, defaultDept: "Information Technology", defaultSubject: "Mobile Computing", avgScore: 80.5, passRate: 92.4 },
+      { id: 44, name: "IIT Kanpur", code: "IITK", state: "Uttar Pradesh", district: "Kanpur", location: "Kalyanpur, Kanpur", centersCount: 6, studentsCount: 2, subjectsCount: 26, examsCount: 62, defaultDept: "Computer Science", defaultSubject: "Quantum Computing", avgScore: 92.8, passRate: 99.8 },
+      { id: 45, name: "IIT BHU Varanasi", code: "IITBHU", state: "Uttar Pradesh", district: "Varanasi", location: "BHU Campus, Varanasi", centersCount: 5, studentsCount: 2, subjectsCount: 23, examsCount: 54, defaultDept: "Ceramic Engineering", defaultSubject: "Nanotechnology", avgScore: 89.4, passRate: 99.2 },
+    ];
+    const saved = localStorage.getItem('colleges');
     if (saved) {
       try {
         const parsed = JSON.parse(saved);
-        const cleaned = parsed.map((s) => {
-          const { papers, ...rest } = s;
-          const cleanPapers = Array.isArray(papers)
-            ? papers.map(p => (typeof p === 'string' && p.startsWith('data:image/') && p.length > 50000 ? undefined : p)).filter(Boolean)
-            : undefined;
-          const nameLower = (s.name || '').toLowerCase().trim();
-          let cId = s.collegeId;
-          if (nameLower.includes('aarav') || nameLower.includes('priya') || nameLower.includes('aditya')) {
-            cId = 2;
-          } else if (nameLower.includes('sneha') || nameLower.includes('vikram')) {
-            cId = 3;
-          } else if (!cId) {
-            cId = 1;
-          }
-          const updatedPhoto = getStudentPhoto(s);
-          return {
-            ...rest,
-            collegeId: cId,
-            photo: updatedPhoto,
-            papers: cleanPapers?.length > 0 ? cleanPapers : undefined,
-          };
+        if (Array.isArray(parsed) && parsed.length >= 40) return parsed.map(c => ({ ...c, studentsCount: 2 }));
+        // Merge saved with default properties
+        return defaultColleges.map(dc => {
+          const found = parsed.find(p => p.id === dc.id);
+          return found ? { ...dc, ...found, studentsCount: 2 } : { ...dc, studentsCount: 2 };
         });
+      } catch {
+        return defaultColleges;
+      }
+    }
+    return defaultColleges;
+  })(),
+  centers: (() => {
+    const defaultCenters = [
+      { id: 1, collegeId: 1, name: "Kothrud", location: "Kothrud Center" },
+      { id: 2, collegeId: 1, name: "Shivaji Nagar", location: "Shivaji Nagar Center" },
+      { id: 3, collegeId: 2, name: "Dhankawadi", location: "Dhankawadi Center" },
+      { id: 4, collegeId: 2, name: "Bibwewadi", location: "Bibwewadi Center" },
+      { id: 5, collegeId: 3, name: "FC Road (Deccan)", location: "Deccan Gymkhana" },
+      { id: 6, collegeId: 4, name: "Akurdi", location: "Akurdi Center" },
+      { id: 7, collegeId: 5, name: "Viman Nagar", location: "Viman Nagar Center" },
+      { id: 8, collegeId: 6, name: "Hinjewadi", location: "Hinjewadi Phase 1" },
+      { id: 9, collegeId: 7, name: "Hadapsar", location: "Hadapsar Center" },
+      { id: 10, collegeId: 8, name: "Swargate", location: "Swargate Center" },
+      { id: 11, collegeId: 9, name: "Kondhwa", location: "Kondhwa Center" },
+      { id: 12, collegeId: 10, name: "Pimpri-Chinchwad", location: "Pimpri Hub" },
+      { id: 13, collegeId: 11, name: "Kalyani Nagar", location: "Kalyani Nagar Center" },
+      { id: 14, collegeId: 12, name: "Warje", location: "Warje Center" },
+      { id: 15, collegeId: 1, name: "Karve Nagar", location: "Karve Nagar Center" },
+      { id: 16, collegeId: 2, name: "Model Colony", location: "Model Colony Center" },
+      { id: 17, collegeId: 3, name: "Ganeshkhind", location: "Ganeshkhind Center" },
+      { id: 18, collegeId: 4, name: "Katraj", location: "Katraj Center" },
+      { id: 19, collegeId: 5, name: "Baner", location: "Baner Center" },
+      { id: 20, collegeId: 6, name: "Wakad", location: "Wakad Center" },
+      { id: 21, collegeId: 7, name: "Bawdhan", location: "Bawdhan Center" },
+      { id: 22, collegeId: 8, name: "Camp", location: "Camp Center" }
+    ];
+    safeSetLocalStorage('centers', defaultCenters);
+    return defaultCenters;
+  })(),
+  students: (() => {
+    const saved = localStorage.getItem('students');
+    const batchFallbackList = ['B-1', 'A-1', 'C-1', 'B-2', 'A-2', 'C-2', 'D-1', 'D-2'];
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved);
+        const cleaned = parsed
+          .filter(s => {
+            const n = (s.name || '').toLowerCase();
+            return !n.includes('omkar') && n !== 'om';
+          })
+          .map((s, idx) => {
+            const { papers, ...rest } = s;
+            const cleanPapers = Array.isArray(papers)
+              ? papers.map(p => (typeof p === 'string' && p.startsWith('data:image/') && p.length > 50000 ? undefined : p)).filter(Boolean)
+              : undefined;
+            const nameLower = (s.name || '').toLowerCase().trim();
+            let cId = s.collegeId;
+            if (nameLower.includes('aarav') || nameLower.includes('priya')) {
+              cId = 2; // MIT College: ONLY Aarav & Priya
+            } else if (nameLower.includes('aditya') || nameLower.includes('sneha') || nameLower.includes('vikram')) {
+              cId = 3;
+            } else if (!cId) {
+              cId = 1;
+            }
+            const updatedPhoto = getStudentPhoto(s);
+            let batchVal = s.batch;
+            if (!batchVal || batchVal === 'Batch 2025-26' || batchVal.includes('Batch')) {
+              batchVal = batchFallbackList[idx % batchFallbackList.length];
+            }
+            return {
+              ...rest,
+              collegeId: cId,
+              batch: batchVal,
+              photo: updatedPhoto,
+              papers: cleanPapers?.length > 0 ? cleanPapers : undefined,
+            };
+          });
         safeSetLocalStorage('students', cleaned);
         return cleaned;
       } catch {
@@ -231,14 +413,14 @@ Ans. The Quit India Movement was started in 1917 by Bal Gangadhar Tilak. It dema
       }
     }
     const defaults = [
-      { id: 1, collegeId: 1, rollNo: 'CS101', name: 'Rohan Sharma', prn: '202301001', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester III', division: 'A', attendance: 88, photo: '/students/student_male_1.png' },
-      { id: 2, collegeId: 1, rollNo: 'CS102', name: 'Rohit Prakash Patil', prn: '202301002', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester III', division: 'A', attendance: 92, photo: '/students/student_male_2.png' },
-      { id: 3, collegeId: 1, rollNo: 'CS103', name: 'Yuvraj patil', prn: '202301003', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester III', division: 'A', attendance: 84, photo: '/students/student_male_3.png' },
-      { id: 4, collegeId: 2, rollNo: '01', name: 'Aarav Sharma', prn: '101', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester IV', division: 'A', attendance: 75, photo: '/students/student_male_3.png' },
-      { id: 5, collegeId: 2, rollNo: '02', name: 'Priya Joshi', prn: '102', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester IV', division: 'A', attendance: 83, photo: '/students/student_female_2.png' },
-      { id: 6, collegeId: 2, rollNo: 'CS105', name: 'Aditya Deshmukh', prn: '202301005', department: 'Artificial Intelligence', year: 'First Year', semester: 'Semester I', division: 'A', attendance: 95, photo: '/students/student_male_2.png' },
-      { id: 7, collegeId: 3, rollNo: 'CS106', name: 'Sneha Kulkarni', prn: '202301006', department: 'Data Science', year: 'Second Year', semester: 'Semester IV', division: 'B', attendance: 90, photo: '/students/student_female_1.png' },
-      { id: 8, collegeId: 3, rollNo: 'CS107', name: 'Vikram Singh', prn: '202301007', department: 'Mechanical', year: 'Fourth Year', semester: 'Semester VII', division: 'A', attendance: 82, photo: '/students/student_male_3.png' },
+      { id: 1, collegeId: 1, rollNo: 'CS101', name: 'Rohan Sharma', prn: '202301001', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester III', division: 'A', batch: 'B-1', attendance: 88, photo: '/students/student_male_1.png' },
+      { id: 2, collegeId: 1, rollNo: 'CS102', name: 'Sample Student 1', prn: '202301002', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester III', division: 'A', batch: 'A-1', attendance: 92, photo: '/students/student_male_2.png' },
+      { id: 3, collegeId: 1, rollNo: 'CS103', name: 'Sample Student 2', prn: '202301003', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester III', division: 'A', batch: 'C-1', attendance: 84, photo: '/students/student_male_3.png' },
+      { id: 4, collegeId: 2, rollNo: '01', name: 'Aarav Sharma', prn: '101', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester IV', division: 'A', batch: 'B-1', attendance: 75, photo: '/students/student_male_3.png' },
+      { id: 5, collegeId: 2, rollNo: '02', name: 'Priya Joshi', prn: '102', department: 'Computer Engineering', year: 'Second Year', semester: 'Semester IV', division: 'A', batch: 'B-2', attendance: 83, photo: '/students/student_female_2.png' },
+      { id: 6, collegeId: 3, rollNo: 'CS105', name: 'Aditya Deshmukh', prn: '202301005', department: 'Artificial Intelligence', year: 'First Year', semester: 'Semester I', division: 'A', batch: 'A-2', attendance: 95, photo: '/students/student_male_2.png' },
+      { id: 7, collegeId: 3, rollNo: 'CS106', name: 'Sneha Kulkarni', prn: '202301006', department: 'Data Science', year: 'Second Year', semester: 'Semester IV', division: 'B', batch: 'C-2', attendance: 90, photo: '/students/student_female_1.png' },
+      { id: 8, collegeId: 3, rollNo: 'CS107', name: 'Vikram Singh', prn: '202301007', department: 'Mechanical', year: 'Fourth Year', semester: 'Semester VII', division: 'A', batch: 'D-1', attendance: 82, photo: '/students/student_male_3.png' },
     ];
     safeSetLocalStorage('students', defaults);
     return defaults;
@@ -258,9 +440,11 @@ function appReducer(state, action) {
       return { ...state, theme: newTheme };
     }
 
+    case 'SET_UPLOADED_FILES':
     case 'ADD_UPLOADED_FILES': {
-      const newFiles = [...state.uploadedFiles, ...action.payload.files];
-      const newPreviews = [...state.imagePreviews, ...action.payload.previews];
+      const isSet = action.type === 'SET_UPLOADED_FILES';
+      const newFiles = isSet ? action.payload.files : [...state.uploadedFiles, ...action.payload.files];
+      const newPreviews = isSet ? action.payload.previews : [...state.imagePreviews, ...action.payload.previews];
 
       const selName = state.studentInfo?.name?.trim().toLowerCase();
       const selRoll = state.studentInfo?.rollNo?.trim().toLowerCase();
@@ -414,6 +598,9 @@ function appReducer(state, action) {
 
       updatedStudents = reorderStudentsForUploadedPdfs(updatedStudents, state.uploadedFiles, updatedInfo, state.extractedText);
       safeSetLocalStorage('students', updatedStudents);
+      safeSetLocalStorage('studentInfo', updatedInfo);
+      if (updatedInfo.state) safeSetLocalStorage('selectedState', updatedInfo.state);
+      if (updatedInfo.district) safeSetLocalStorage('selectedDistrict', updatedInfo.district);
 
       return {
         ...state,
@@ -434,6 +621,41 @@ function appReducer(state, action) {
     case 'SET_OMR_ANSWER_KEY':
       return { ...state, omrAnswerKey: action.payload };
 
+    case 'SAVE_ANSWER_KEY': {
+      const keyToSave = action.payload;
+      const existingIdx = (state.savedAnswerKeys || []).findIndex(k => k.id === keyToSave.id);
+      let updatedKeys = [];
+      if (existingIdx >= 0) {
+        updatedKeys = (state.savedAnswerKeys || []).map((k, i) => i === existingIdx ? keyToSave : k);
+      } else {
+        updatedKeys = [keyToSave, ...(state.savedAnswerKeys || [])];
+      }
+      safeSetLocalStorage('savedAnswerKeys', updatedKeys);
+      return { ...state, savedAnswerKeys: updatedKeys };
+    }
+
+    case 'DELETE_ANSWER_KEY': {
+      // Handle special purge of built-in demo keys
+      if (action.payload === '__PURGE_DEMO_KEYS__') {
+        const cleanedKeys = (state.savedAnswerKeys || []).filter(k => {
+          if (!k) return false;
+          const title = (k.title || '').toLowerCase();
+          const id = (k.id || '').toLowerCase();
+          return !['key-dbms-a', 'key-ml-b', 'key-cn-c', 'key-math-d'].includes(id) &&
+                 !title.includes('dbms unit test') &&
+                 !title.includes('machine learning mid-term') &&
+                 !title.includes('computer networks quiz') &&
+                 !title.includes('mathematics unit 1');
+        });
+        safeSetLocalStorage('savedAnswerKeys', cleanedKeys);
+        return { ...state, savedAnswerKeys: cleanedKeys };
+      }
+      const idToDelete = action.payload;
+      const updatedKeys = (state.savedAnswerKeys || []).filter(k => k.id !== idToDelete);
+      safeSetLocalStorage('savedAnswerKeys', updatedKeys);
+      return { ...state, savedAnswerKeys: updatedKeys };
+    }
+
     case 'UPDATE_SETTINGS': {
       const newSettings = { ...state.settings, ...action.payload };
       Object.entries(action.payload).forEach(([key, value]) => {
@@ -450,7 +672,7 @@ function appReducer(state, action) {
         const sName = (s.name || '').toLowerCase().trim();
         const isMatch = (targetName && (sName.includes(targetName) || targetName.includes(sName))) || s.id === studentNameOrId;
         if (isMatch) {
-          return { ...s, isApproved: true };
+          return { ...s, isApproved: true, status: 'Approved' };
         }
         return s;
       });
@@ -462,6 +684,217 @@ function appReducer(state, action) {
         approvedList.push(targetName);
         localStorage.setItem('approvedStudentNames', JSON.stringify(approvedList));
       }
+
+      return {
+        ...state,
+        students: updatedStudents,
+      };
+    }
+
+    case 'FLAG_STUDENTS_AS_COPIED': {
+      const { studentNames, details } = action.payload || {};
+      const names = Array.isArray(studentNames) ? studentNames.map(n => String(n).toLowerCase().trim()) : [];
+      
+      const updatedStudents = state.students.map(s => {
+        const sName = (s.name || '').toLowerCase().trim();
+        const sRoll = (s.rollNo || '').toLowerCase().trim();
+        const isMatch = names.some(n => (n && (sName.includes(n) || n.includes(sName))) || sRoll === n);
+        if (isMatch) {
+          return {
+            ...s,
+            isCopied: true,
+            status: 'Flagged (Copied)',
+            copiedDetails: details || 'Matched answers detected in visual comparison'
+          };
+        }
+        return s;
+      });
+
+      safeSetLocalStorage('students', updatedStudents);
+
+      const copiedList = JSON.parse(localStorage.getItem('copiedStudentNames') || '[]');
+      names.forEach(n => {
+        if (!copiedList.includes(n)) copiedList.push(n);
+      });
+      localStorage.setItem('copiedStudentNames', JSON.stringify(copiedList));
+
+      return {
+        ...state,
+        students: updatedStudents,
+      };
+    }
+
+    case 'CLEAR_COPIED_FLAG': {
+      const studentNameOrId = action.payload;
+      const targetName = (typeof studentNameOrId === 'string' ? studentNameOrId : studentNameOrId?.name || '').toLowerCase().trim();
+      
+      const updatedStudents = state.students.map(s => {
+        const sName = (s.name || '').toLowerCase().trim();
+        const isMatch = (targetName && (sName.includes(targetName) || targetName.includes(sName))) || s.id === studentNameOrId;
+        if (isMatch) {
+          const { isCopied, copiedDetails, ...rest } = s;
+          return { ...rest, status: rest.isApproved ? 'Approved' : 'Pending' };
+        }
+        return s;
+      });
+
+      safeSetLocalStorage('students', updatedStudents);
+
+      const copiedList = JSON.parse(localStorage.getItem('copiedStudentNames') || '[]');
+      const filtered = copiedList.filter(n => !(targetName && (n.includes(targetName) || targetName.includes(n))));
+      localStorage.setItem('copiedStudentNames', JSON.stringify(filtered));
+
+      return {
+        ...state,
+        students: updatedStudents,
+      };
+    }
+
+    case 'APPROVE_STUDENT_OMR_EVALUATION': {
+      const omrData = action.payload;
+      if (!omrData || !omrData.student) return state;
+
+      const rollNoRaw = String(omrData.student.rollNo || '11').trim();
+      const studentName = omrData.student.name || `Student ${rollNoRaw}`;
+      const prnVal = omrData.student.prn || `2026${Math.floor(1000 + Math.random() * 9000)}`;
+      const percentageScore = omrData.summary?.percentage !== undefined ? omrData.summary.percentage : 80;
+      const totalScore = omrData.summary?.totalScore || 0;
+      const maxScore = omrData.summary?.maxScore || 10;
+
+      let found = false;
+      let updatedStudents = state.students.map(s => {
+        const sRoll = String(s.rollNo || '').trim().toLowerCase();
+        const targetRoll = rollNoRaw.toLowerCase();
+        const matchRoll = sRoll === targetRoll || (targetRoll && sRoll.includes(targetRoll)) || (targetRoll && targetRoll.includes(sRoll));
+        const matchName = s.name?.toLowerCase().includes(studentName.toLowerCase()) || studentName.toLowerCase().includes(s.name?.toLowerCase());
+
+        if (matchRoll || matchName) {
+          found = true;
+          return {
+            ...s,
+            rollNo: s.rollNo || rollNoRaw,
+            name: s.name && !s.name.includes('Sample') ? s.name : studentName,
+            isApproved: true,
+            status: 'Approved',
+            scorePercentage: percentageScore,
+            attendance: percentageScore,
+            evaluation: {
+              marksObtained: totalScore,
+              maxMarks: maxScore,
+              percentage: percentageScore,
+              accuracy: percentageScore,
+              approved: true,
+              approvedAt: new Date().toISOString(),
+              questionResults: omrData.questionResults,
+            },
+            omrResult: omrData,
+          };
+        }
+        return s;
+      });
+
+      if (!found) {
+        const newStudent = {
+          id: Date.now(),
+          collegeId: 4, // Pune University
+          rollNo: rollNoRaw,
+          name: studentName,
+          prn: prnVal,
+          department: omrData.student.department || 'Computer Engineering',
+          year: 'Second Year',
+          semester: 'Semester IV',
+          division: 'C',
+          batch: 'C-1',
+          attendance: percentageScore,
+          photo: getStudentPhoto({ rollNo: rollNoRaw, name: studentName }),
+          isApproved: true,
+          status: 'Approved',
+          scorePercentage: percentageScore,
+          evaluation: {
+            marksObtained: totalScore,
+            maxMarks: maxScore,
+            percentage: percentageScore,
+            accuracy: percentageScore,
+            approved: true,
+            approvedAt: new Date().toISOString(),
+            questionResults: omrData.questionResults,
+          },
+          omrResult: omrData,
+        };
+        updatedStudents = [...updatedStudents, newStudent];
+      }
+
+      safeSetLocalStorage('students', updatedStudents);
+
+      const approvedList = JSON.parse(localStorage.getItem('approvedStudentNames') || '[]');
+      const targetNameLower = studentName.toLowerCase().trim();
+      const targetRollLower = rollNoRaw.toLowerCase().trim();
+      if (targetNameLower && !approvedList.includes(targetNameLower)) {
+        approvedList.push(targetNameLower);
+      }
+      if (targetRollLower && !approvedList.includes(targetRollLower)) {
+        approvedList.push(targetRollLower);
+      }
+      localStorage.setItem('approvedStudentNames', JSON.stringify(approvedList));
+
+      return {
+        ...state,
+        students: updatedStudents,
+      };
+    }
+
+    case 'FLAG_STUDENTS_AS_COPIED': {
+      const { studentNames, details } = action.payload || {};
+      const names = Array.isArray(studentNames) ? studentNames.map(n => String(n).toLowerCase().trim()) : [];
+      
+      const updatedStudents = state.students.map(s => {
+        const sName = (s.name || '').toLowerCase().trim();
+        const sRoll = (s.rollNo || '').toLowerCase().trim();
+        const isMatch = names.some(n => (n && (sName.includes(n) || n.includes(sName))) || sRoll === n);
+        if (isMatch) {
+          return {
+            ...s,
+            isCopied: true,
+            status: 'Flagged (Copied)',
+            copiedDetails: details || 'Matched answers detected in visual comparison'
+          };
+        }
+        return s;
+      });
+
+      safeSetLocalStorage('students', updatedStudents);
+
+      const copiedList = JSON.parse(localStorage.getItem('copiedStudentNames') || '[]');
+      names.forEach(n => {
+        if (!copiedList.includes(n)) copiedList.push(n);
+      });
+      localStorage.setItem('copiedStudentNames', JSON.stringify(copiedList));
+
+      return {
+        ...state,
+        students: updatedStudents,
+      };
+    }
+
+    case 'CLEAR_COPIED_FLAG': {
+      const studentNameOrId = action.payload;
+      const targetName = (typeof studentNameOrId === 'string' ? studentNameOrId : studentNameOrId?.name || '').toLowerCase().trim();
+      
+      const updatedStudents = state.students.map(s => {
+        const sName = (s.name || '').toLowerCase().trim();
+        const isMatch = (targetName && (sName.includes(targetName) || targetName.includes(sName))) || s.id === studentNameOrId;
+        if (isMatch) {
+          const { isCopied, copiedDetails, ...rest } = s;
+          return { ...rest, status: rest.isApproved ? 'Approved' : 'Pending' };
+        }
+        return s;
+      });
+
+      safeSetLocalStorage('students', updatedStudents);
+
+      const copiedList = JSON.parse(localStorage.getItem('copiedStudentNames') || '[]');
+      const filtered = copiedList.filter(n => !(targetName && (n.includes(targetName) || targetName.includes(n))));
+      localStorage.setItem('copiedStudentNames', JSON.stringify(filtered));
 
       return {
         ...state,
@@ -561,6 +994,20 @@ function appReducer(state, action) {
       return { ...state, students: filteredStudents };
     }
 
+    case 'SET_STUDENT_INFO': {
+      const updatedStudentInfo = {
+        ...state.studentInfo,
+        ...action.payload,
+      };
+      return {
+        ...state,
+        studentInfo: updatedStudentInfo,
+      };
+    }
+
+    // NOTE: SAVE_ANSWER_KEY and DELETE_ANSWER_KEY are intentionally handled only once above (lines ~624 and ~637).
+    // Duplicate cases were removed to prevent the second case from silently overriding the first.
+
     default:
       return state;
   }
@@ -585,6 +1032,29 @@ export function isStudentApproved(student, state) {
   });
 
   return Boolean(matchedStudent?.isApproved);
+}
+
+/** Helper function to check if a student has been flagged for copied answers / malpractice */
+export function isStudentCopied(student, state) {
+  if (!student) return false;
+  if (student.isCopied) return true;
+
+  const targetName = (typeof student === 'string' ? student : student?.name || '').toLowerCase().trim();
+  const targetRoll = (typeof student === 'object' ? student?.rollNo : '')?.toLowerCase().trim();
+  if (!targetName && !targetRoll) return false;
+
+  const copiedList = JSON.parse(localStorage.getItem('copiedStudentNames') || '[]');
+  if (copiedList.some(item => (targetName && (targetName.includes(item) || item.includes(targetName))) || (targetRoll && targetRoll === item))) {
+    return true;
+  }
+
+  const matchedStudent = state?.students?.find(s => {
+    const sName = (s.name || '').toLowerCase().trim();
+    const sRoll = (s.rollNo || '').toLowerCase().trim();
+    return (sName && targetName && (sName.includes(targetName) || targetName.includes(sName))) || (sRoll && targetRoll && sRoll === targetRoll);
+  });
+
+  return Boolean(matchedStudent?.isCopied);
 }
 
 /** Provider component that wraps the application */

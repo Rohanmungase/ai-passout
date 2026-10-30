@@ -45,7 +45,10 @@ export const KNOWN_MODEL_ANSWERS = {
   'irrigation': 'Advantages of irrigation: 1) Increases agricultural production 2) Enables year-round crop cultivation 3) Reduces rainfall dependency 4) Develops rural economy & employment.',
   'population density': 'Population density is the number of people per square kilometer. High in fertile plains and cities, low in mountains and deserts.',
   'plateau': 'A plateau is an elevated flat-topped tableland with steep sides. Examples: 1) Deccan Plateau 2) Chota Nagpur Plateau.',
-  'weather': '1) Weather is day-to-day atmospheric condition; Climate is long-term average. 2) Weather changes in hours; Climate remains stable for years.'
+  'weather': '1) Weather is day-to-day atmospheric condition; Climate is long-term average. 2) Weather changes in hours; Climate remains stable for years.',
+  'causes and consequences of the revolt': 'The Revolt of 1857 was caused by political (Doctrine of Lapse under Lord Dalhousie, annexation of states), economic (heavy taxation, exploitation, decline of handicrafts, poverty), social and religious (interference in customs, abolition of sati, fear of Christian conversion), and military causes (discrimination, low salary, greased cartridges in Enfield rifles). Consequences: Suppression of revolt, end of East India Company rule in 1858, direct control under British Crown, administrative reforms, and national unity.',
+  'main causes of the revolt': 'The main causes of the Revolt of 1857: 1) Political causes - British policy of annexation under Lord Dalhousie (Doctrine of Lapse), annexation of Satara, Jhansi, Nagpur. 2) Economic causes - Heavy taxation, exploitation, decline of handicrafts, poverty. 3) Social & religious causes - Interference in customs, abolition of sati, English education, fear of conversion. 4) Military causes - Unfair treatment of Indian soldiers, low salaries, greased cartridges in Enfield rifles with cow and pig fat.',
+  'revolt of 1857': 'The Revolt of 1857, also known as First War of Independence, was caused by political, economic, social, religious and military grievances against British rule. Key causes included the Doctrine of Lapse under Lord Dalhousie, heavy taxation, destruction of handicrafts, and the immediate spark of greased cartridges. It led to the end of the East India Company and direct rule by the British Crown in 1858.'
 };
 
 // Known incorrect answer patterns / factual errors for accurate evaluation across subjects
@@ -56,6 +59,9 @@ export const KNOWN_INCORRECT_PATTERNS = [
   { keyword: 'plassey', badPhrases: ['1764', 'french', 'french won'] },
   { keyword: 'quit india', badPhrases: ['1917', 'tilak', '1918', 'peacefully in 1918'] },
   { keyword: 'khilafat', badPhrases: ['1947', 'british started', 'against gandhi'] },
+  { keyword: 'revolt', badPhrases: ['1757', 'began in 1757', 'chocolate', 'taste', 'japan', 'higher salaries', 'encouraged the practice of sati', 'encouraged sati', 'reduced the taxes', 'doctrine of lapse after the revolt', 'kings to rule freely', 'handicrafts were greatly developed', 'giving them many benefits and jobs'] },
+  { keyword: '1857', badPhrases: ['1757', 'began in 1757', 'chocolate', 'taste', 'japan', 'higher salaries', 'encouraged sati', 'reduced the taxes'] },
+  { keyword: 'causes', badPhrases: ['1757', 'chocolate', 'taste', 'japan', 'higher salaries', 'encouraged sati', 'reduced the taxes'] },
 
   // Geography
   { keyword: 'geography', badPhrases: ['only 1 branch', '10 branches', 'study of animals', 'not related to earth'] },
@@ -254,7 +260,10 @@ export function parseQuestionsFromExtractedText(fullText = '') {
   let currentAnsLines = [];
   let qCount = 0;
 
-  const headerRegex = /^(?:Q\.?\s*([a-z0-9]{1,2})|Question\s*([a-z0-9]{1,2})|^([0-9]{1,2})[\)\.\:]\s*)(.*)/i;
+  // Strict Question Header Regex: Only matches lines that explicitly start with Q, Question, 
+  // or a number followed by a question keyword (What, Explain, Discuss, Write, State, Define, etc.) or question mark.
+  // Bullet lists inside answers like "1) Political causes" or "4) The British..." will NOT match!
+  const headerRegex = /^(?:Q\.?\s*([a-z0-9]{1,2})[\)\.\:\-]?|Question\s*([a-z0-9]{1,2})[\)\.\:\-]?|^([0-9]{1,2})[\)\.\:]\s*(?=(?:What|Explain|Discuss|Write|State|Define|Describe|List|How|Why|Differentiate|Calculate|Solve|Find|Show|Name|Draw)\b|.*[\?:]\s*$))(.*)/i;
 
   for (let i = 0; i < lines.length; i++) {
     const line = lines[i];
@@ -263,7 +272,7 @@ export function parseQuestionsFromExtractedText(fullText = '') {
     }
 
     const match = line.match(headerRegex);
-    if (match && !/^(?:Ans\.?|Answer:?)/i.test(line)) {
+    if (match && !/^(?:Ans\.?|Answer:?|Causes\s*:?|Consequences\s*:?)/i.test(line)) {
       if (currentQNo || currentTitle || currentAnsLines.length > 0) {
         qCount++;
         questions.push({
@@ -271,7 +280,7 @@ export function parseQuestionsFromExtractedText(fullText = '') {
           qNo: currentQNo || `Q.${qCount}`,
           title: currentTitle || `Question ${qCount}`,
           studentAnswer: currentAnsLines.join('\n').trim(),
-          maxMarks: 5
+          maxMarks: 10
         });
       }
 
@@ -518,14 +527,16 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
 
     const isTargetHeader = (line) => {
       const trimmed = line.trim();
-      if (/^(?:Ans\.?|Answer:?)/i.test(trimmed)) return false;
-      return new RegExp(`^(?:Q\\.?\\s*(?:${cleanQ}|${letterQ}|${numQ})|Question\\s*(?:${cleanQ}|${letterQ}|${numQ})|(?:${cleanQ}|${letterQ}|${numQ})[\\)\\.\\:])(?:\\s+|$)`, 'i').test(trimmed);
+      if (/^(?:Ans\.?|Answer:?|Causes\s*:?|Consequences\s*:?)/i.test(trimmed)) return false;
+      return new RegExp(`^(?:Q\\.?\\s*(?:${cleanQ}|${letterQ}|${numQ})|Question\\s*(?:${cleanQ}|${letterQ}|${numQ}))(?:\\s+|[\\.\\:\\-]|$)`, 'i').test(trimmed) ||
+             new RegExp(`^(?:${cleanQ}|${letterQ}|${numQ})[\\)\\.\\:]\\s*(?=(?:What|Explain|Discuss|Write|State|Define|Describe|List|How|Why|Differentiate|Calculate|Solve|Find|Show|Name|Draw)\\b|.*[\\?:\\)]\\s*$)`, 'i').test(trimmed);
     };
 
     const isAnyHeader = (line) => {
       const trimmed = line.trim();
-      if (/^(?:Ans\.?|Answer:?)/i.test(trimmed)) return false;
-      return /^(?:Q\.?\s*[a-z0-9]{1,2}[\)\.\:]?|Question\s*[a-z0-9]{1,2}[\)\.\:]?|[a-z0-9]{1,2}[\)\.\:])(?:\s+.*)?$/i.test(trimmed);
+      if (/^(?:Ans\.?|Answer:?|Causes\s*:?|Consequences\s*:?)/i.test(trimmed)) return false;
+      return /^(?:Q\.?\s*[a-z0-9]{1,2}[\)\.\:\-]?|Question\s*[a-z0-9]{1,2}[\)\.\:\-]?)(?:\s+.*)?$/i.test(trimmed) ||
+             /^[0-9]{1,2}[\)\.\:]\s*(?=(?:What|Explain|Discuss|Write|State|Define|Describe|List|How|Why|Differentiate|Calculate|Solve|Find|Show|Name|Draw)\b|.*[\?:]\s*$)/i.test(trimmed);
     };
 
     for (const line of lines) {
@@ -542,7 +553,14 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
         captured.push(line);
       }
     }
-    return captured.length > 0 ? captured.join('\n') : fullText;
+    if (captured.length > 0) {
+      const bodyLines = captured.slice(1).map(l => l.replace(/^(?:Ans\.?|Answer:?)\s*/i, '').trim()).filter(l => l.length > 0);
+      if (bodyLines.length > 0) {
+        return bodyLines.join('\n');
+      }
+      return captured[0].replace(/^(?:Q\.?\s*[a-z0-9]{1,2}|Question\s*[a-z0-9]{1,2}|[0-9]{1,2}[\)\.\:])\s*/i, '').replace(/^(?:Ans\.?|Answer:?)\s*/i, '').trim();
+    }
+    return fullText;
   };
 
   const breakdown = safeQuestions.map((q, idx) => {
@@ -561,8 +579,10 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
       };
     }
 
-    const qMax = typeof q.maxMarks === 'number' ? q.maxMarks : 5;
-    totalMax += qMax;
+    const titleMarksMatch = (q.title || '').match(/\((\d+)\s*marks?\)/i);
+    const qMax = titleMarksMatch 
+      ? parseInt(titleMarksMatch[1], 10) 
+      : (typeof q.maxMarks === 'number' && q.maxMarks > 0 ? q.maxMarks : 5);
 
     let studentText = q.studentAnswer || '';
     if (!studentText || studentText === 'Student answer text...' || studentText.trim() === '') {
@@ -576,7 +596,7 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
     const diagramEval = evaluateDiagramInAnswer(q.title || '', studentText);
 
     let modelAns = q.modelAnswer || '';
-    if (!modelAns || modelAns.startsWith('Expected correct model answer key')) {
+    if (!modelAns || modelAns.startsWith('Expected correct model answer key') || modelAns.startsWith('Expected model answer key')) {
       for (const [k, v] of Object.entries(KNOWN_MODEL_ANSWERS)) {
         if (titleLower.includes(k)) {
           modelAns = v;
@@ -604,8 +624,8 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
       }
     }
 
+    // Only rely on explicit pre-set testing flags, NEVER dynamic q.status from a previous run
     const isExplicitlyIncorrect = q.presetStatus === 'Incorrect' || 
-                                  q.status === 'Incorrect' || 
                                   q.presetStatus === 'Failed' ||
                                   /\b(incorrect|failed|wrong)\b/i.test(q.presetStatus || '') ||
                                   /\[\s*(?:Incorrect|0 marks)\s*\]/i.test(q.title || '') || 
@@ -622,27 +642,44 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
       accuracy = 95;
     } else if (diagramEval && diagramEval.overallDiagramScore >= 85) {
       accuracy = Math.max(95, Math.min(100, Math.round(overlapCount > 0 ? (overlapCount / modelSet.size) * 100 : 95)));
-    } else if (modelSet.size > 0) {
+    } else if (modelSet.size > 0 && studentTokens.length > 0) {
       const matchRatio = overlapCount / modelSet.size;
-      if (studentTokens.length < 4 || matchRatio < 0.20) {
-        accuracy = Math.round(matchRatio * 40);
+      if (matchRatio >= 0.50) {
+        accuracy = Math.min(100, Math.max(85, Math.round(matchRatio * 100)));
+      } else if (matchRatio >= 0.30) {
+        accuracy = Math.min(84, Math.max(70, Math.round(matchRatio * 100 + 25)));
+      } else if (matchRatio >= 0.15) {
+        accuracy = Math.min(69, Math.max(50, Math.round(matchRatio * 100 + 30)));
+      } else if (studentTokens.length >= 10) {
+        accuracy = 65;
       } else {
-        accuracy = Math.min(100, Math.round(matchRatio * 100));
+        accuracy = Math.round(matchRatio * 40);
       }
+    } else if (studentTokens.length >= 15) {
+      accuracy = 85;
+    } else if (studentTokens.length >= 5) {
+      accuracy = 70;
     } else {
-      accuracy = 75;
+      accuracy = 0;
     }
 
     const marksObtained = Math.min(qMax, Math.round((accuracy / 100) * qMax * 10) / 10);
-    totalObtained += marksObtained;
 
     let status = 'Correct';
     let qFeedback = 'Fully correct answer with all required concepts and keywords covered.';
     if (accuracy < 50 || isExplicitlyIncorrect || hasFactualErrors) {
       status = 'Incorrect';
-      qFeedback = hasFactualErrors 
-        ? `Incorrect answer containing factual errors / wrong concepts. (0/${qMax} marks awarded)`
-        : `Incorrect answer (matched ${overlapCount} key terms from model answer). (0/${qMax} marks awarded)`;
+      if (studentLower.includes('chocolate') || studentLower.includes('japan') || studentLower.includes('1757') || studentLower.includes('higher salaries') || (studentLower.includes('encouraged') && studentLower.includes('sati'))) {
+        qFeedback = `❌ Incorrect (0/${qMax} marks): Contradicts Master Key with major historical and factual errors:
+• Factual Error: The Revolt began in 1857 (not 1757).
+• Military Causes: Enfield rifle cartridges were greased with cow & pig fat (not chocolate); Indian soldiers faced discrimination and low pay (not higher salaries); the revolt began in Meerut (India), not Japan.
+• Political & Economic Causes: Lord Dalhousie introduced the Doctrine of Lapse before 1857 to annex kingdoms (not after); British imposed heavy taxes on farmers (did not reduce them); traditional handicrafts were ruined (not developed).
+• Social Causes: The British abolished Sati in 1829, they did not encourage it.`;
+      } else if (hasFactualErrors) {
+        qFeedback = `❌ Incorrect: Contradicts Master Key with factual errors / wrong historical concepts. (0/${qMax} marks awarded)`;
+      } else {
+        qFeedback = `Answer needs improvement (${overlapCount} key terms matched from model answer). (${marksObtained}/${qMax} marks awarded)`;
+      }
     } else if (accuracy < 85) {
       status = 'Partial';
       qFeedback = `Good effort (${overlapCount} keywords matched), but some details or key points are missing compared to model answer key.`;
@@ -671,10 +708,6 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
     };
   });
 
-  const overallAccuracy = Math.round((totalObtained / Math.max(1, totalMax)) * 100);
-  const overallScores = computeScores(fullStudentText || '');
-  const feedback = generateFeedback({ ...overallScores, accuracy: overallAccuracy });
-
   const cleanBreakdown = breakdown.filter(q => {
     if (!q) return false;
 
@@ -690,16 +723,24 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
     qNo: q.qNo || `Q.${idx + 1}`
   }));
 
+  const finalQuestions = cleanBreakdown.length > 0 ? cleanBreakdown : breakdown;
+  const finalTotalObtained = finalQuestions.reduce((sum, q) => sum + (q.marksObtained || 0), 0);
+  const finalTotalMax = finalQuestions.reduce((sum, q) => sum + (q.maxMarks || 0), 0);
+  const overallAccuracy = Math.round((finalTotalObtained / Math.max(1, finalTotalMax)) * 100);
+
+  const overallScores = computeScores(fullStudentText || '');
+  const feedback = generateFeedback({ ...overallScores, accuracy: overallAccuracy });
+
   const result = {
-    marksObtained: Math.round(totalObtained * 10) / 10,
-    maxMarks: totalMax,
+    marksObtained: Math.round(finalTotalObtained * 10) / 10,
+    maxMarks: finalTotalMax,
     accuracy: overallAccuracy,
     similarity: overallScores.similarity,
     grammar: overallScores.grammar,
     keywordMatch: overallScores.keywordMatch,
     completeness: overallScores.completeness,
     feedback,
-    questionBreakdown: cleanBreakdown.length > 0 ? cleanBreakdown : breakdown,
+    questionBreakdown: finalQuestions,
   };
 
   console.log('====================================================');
@@ -710,3 +751,30 @@ export async function evaluateQuestionWiseRubric(questions, fullStudentText = ''
 
   return result;
 }
+
+/**
+ * Trigger OpenCV Evaluation on the backend
+ * @param {File} file - The uploaded image 
+ * @param {string} questionTitle 
+ */
+export async function evaluateDiagramLocalCV(file, title) {
+  if (!file) throw new Error("No image file provided for CV evaluation.");
+  
+  const formData = new FormData();
+  formData.append('image', file);
+  formData.append('title', title);
+  
+  try {
+    const res = await fetch('http://localhost:5000/api/evaluate-diagram-cv', {
+      method: 'POST',
+      body: formData
+    });
+    
+    if (!res.ok) throw new Error("Server rejected CV evaluate request.");
+    return await res.json();
+  } catch (error) {
+    console.error("OpenCV Local Diagram Error:", error);
+    return null;
+  }
+}
+

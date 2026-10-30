@@ -3,6 +3,9 @@
 
 @import "tailwindcss";
 
+/* Enable class-based manual dark mode toggling */
+@custom-variant dark (&:where(.dark, .dark *));
+
 /* ===== Custom Theme ===== */
 @theme {
   --color-primary: #2563EB;
