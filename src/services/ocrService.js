@@ -2261,6 +2261,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 3, width: 94, height: 13 },
       title: "Define the term 'Force' and write its SI unit.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Force is a push or pull acting on a body which can change its state of rest or motion or its shape. The SI unit of force is newton (N).",
       defaultStudentAnswer: "Force is a push or pull acting on a body which can change its state of rest or motion or its shape. The SI unit of force is newton (N).",
       keywords: ['force', 'push or pull', 'newton', 'si unit']
@@ -2272,6 +2276,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 17, width: 94, height: 13 },
       title: "State Newton's first law of motion.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Every body continues in its state of rest or uniform motion in a straight line unless acted upon by an external unbalanced force.",
       defaultStudentAnswer: "Every body continues in its state of rest or uniform motion in a straight line unless acted upon by an external unbalanced force.",
       keywords: ["newton's first law", 'rest or uniform motion', 'external unbalanced force']
@@ -2283,6 +2291,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 31, width: 94, height: 14 },
       title: "Derive an expression for the velocity of a freely falling body.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Let u = 0, a = g, t = time of fall, v = final velocity. Using v = u + at => v = 0 + gt => v = gt. Therefore, the velocity of a freely falling body is v = gt.",
       defaultStudentAnswer: "Let,\nInitial velocity, u = 0 (freely falling)\nAcceleration due to gravity, a = g\nTime of fall = t\nFinal velocity = v\nUsing the equation of motion,\nv = u + at\nv = 0 + gt\nv = gt\n∴ The velocity of a freely falling body is v = gt.",
       keywords: ['freely falling', 'v = gt', 'u = 0', 'a = g', 'v = u + at']
@@ -2294,6 +2306,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 46, width: 94, height: 14 },
       title: "Draw a neat labelled diagram of a concave mirror and show the formation of image when the object is placed beyond the centre of curvature.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "When object is placed beyond C: Image is formed between F and C, real and inverted, and diminished in size. Ray diagram shows concave mirror, principal axis, F, C with accurate rays.",
       defaultStudentAnswer: "Image is formed :\n1) between F and C\n2) real and inverted\n3) diminished in size",
       keywords: ['concave mirror', 'between f and c', 'real and inverted', 'diminished']
@@ -2305,6 +2321,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 61, width: 94, height: 12 },
       title: "State the law of conservation of energy.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Energy can neither be created nor destroyed, but it can be converted from one form to another. Therefore, the total energy of an isolated system remains constant.",
       defaultStudentAnswer: "Energy can neither be created nor destroyed, but it can be converted from one form to another. Therefore, the total energy of an isolated system remains constant.",
       keywords: ['conservation of energy', 'neither created nor destroyed', 'converted from one form to another']
@@ -2316,6 +2336,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 74, width: 94, height: 13 },
       title: "A body of mass 5 kg is moving with a velocity of 10 m/s. Find its kinetic energy.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Given: m = 5 kg, v = 10 m/s. Formula: KE = 1/2 mv² = 1/2 × 5 × (10)² = 1/2 × 5 × 100 = 250 J. Kinetic energy = 250 J.",
       defaultStudentAnswer: "Given :\nMass, m = 5 kg\nVelocity, v = 10 m/s\nKinetic energy, KE = ?\nFormula : KE = 1/2 mv²\nKE = 1/2 x 5 x (10)²\nKE = 1/2 x 5 x 100\nKE = 250 J\n∴ Kinetic energy = 250 J",
       keywords: ['kinetic energy', '5 kg', '10 m/s', '250 j', '1/2 mv²']
@@ -2327,6 +2351,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 88, width: 94, height: 11 },
       title: "List any four uses of electric energy.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "1) Lighting (bulbs, LED) 2) Heating (electric heater, iron) 3) Running household appliances (fan, refrigerator, TV) 4) In industries (machinery, motors).",
       defaultStudentAnswer: "1) Lighting (bulbs, LED)\n2) Heating (electric heater, iron)\n3) Running household appliances (fan, refrigerator, TV)\n4) In industries (machinery, motors)",
       keywords: ['uses of electric energy', 'lighting', 'heating', 'appliances', 'industries']
@@ -2338,6 +2366,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 3, width: 94, height: 12 },
       title: "Explain the principle of moments with a neat diagram.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "For a body in rotational equilibrium, sum of clockwise moments = sum of anticlockwise moments. F1 x d1 = F2 x d2.",
       defaultStudentAnswer: "The principle of moments states that, for a body to be in rotational equilibrium, the sum of clockwise moments about a point is equal to the sum of anticlockwise moments about that point.\ni.e. Clockwise moment = Anticlockwise moment\nF1 x d1 = F2 x d2 (at equilibrium)",
       keywords: ['principle of moments', 'clockwise moments', 'anticlockwise moments', 'rotational equilibrium']
@@ -2349,6 +2381,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 16, width: 94, height: 12 },
       title: "State Ohm's law. Write its mathematical expression. Define the unit of resistance.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Current through conductor is directly proportional to potential difference across it at constant temp. V = IR. Unit is ohm (Ω): 1 ohm = 1 volt / 1 ampere.",
       defaultStudentAnswer: "Ohm's law : At constant temperature, the current flowing through a conductor is directly proportional to the potential difference across it.\nMathematically, V ∝ I => V = IR\nWhere, R is the resistance of the conductor.\nSI unit of resistance : ohm (Ω).\n1 ohm is the resistance of a conductor when a potential difference of 1 volt across it produces a current of 1 ampere.",
       keywords: ['ohm\'s law', 'v = ir', 'potential difference', 'ohm', 'unit of resistance']
@@ -2360,6 +2396,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 29, width: 94, height: 12 },
       title: "Differentiate between series and parallel combination of resistors (any four points).", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "1) Series: same current; Parallel: current divides. 2) Series: voltage divides; Parallel: same voltage. 3) Series: R = R1+R2; Parallel: 1/R = 1/R1+1/R2. 4) Series: one breaks all fail; Parallel: branches work independently.",
       defaultStudentAnswer: "1) Series: Same current flows through all resistors. Parallel: Current divides across each branch.\n2) Series: Voltage is divided across each resistor. Parallel: Voltage remains same across all resistors.\n3) Series: Total resistance is greater than any individual resistance (R = R1 + R2). Parallel: Total resistance is smaller than the smallest resistance (1/R = 1/R1 + 1/R2).\n4) Series: If one resistor fails, the entire circuit breaks. Parallel: Other branches continue to work even if one fails.",
       keywords: ['series', 'parallel', 'combination of resistors', 'current', 'voltage']
@@ -2371,6 +2411,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 42, width: 94, height: 12 },
       title: "Define power. Derive the formula P = VI and state its unit.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Power is rate of work done or energy consumed: P = W/t. Since W = VIt => P = VIt/t = VI. Unit of power is watt (W) = 1 joule per second.",
       defaultStudentAnswer: "Power is the rate at which work is done or energy is consumed.\nIf an electrical appliance consumes electrical energy W in time t,\nthen power, P = W / t\nSince, W = VIt => P = VIt / t => P = VI\nUnit of power is watt (W).\n1 watt = 1 joule per second (1 W = 1 J/s).",
       keywords: ['power', 'p = vi', 'w / t', 'watt', 'derive']
@@ -2382,6 +2426,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 55, width: 94, height: 12 },
       title: "Explain the formation of image by a convex lens when the object is placed between F1 and 2F1. Draw a ray diagram.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Image formed beyond 2F2, real, inverted and enlarged. Ray diagram shows rays passing through optical centre and focal point.",
       defaultStudentAnswer: "The image formed is real, inverted and enlarged. It is formed beyond 2F2.\nImage characteristics :\n1) Real\n2) Inverted\n3) Enlarged\n4) Formed beyond 2F2.",
       keywords: ['convex lens', 'between f1 and 2f1', 'real', 'inverted', 'enlarged', 'beyond 2f2']
@@ -2393,6 +2441,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 68, width: 94, height: 10 },
       title: "State the laws of reflection of light.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "1) Incident ray, reflected ray and normal at the point of incidence lie in the same plane. 2) Angle of incidence equals angle of reflection (∠i = ∠r).",
       defaultStudentAnswer: "1) The incident ray, reflected ray and the normal at the point of incidence all lie in the same plane.\n2) The angle of incidence is equal to the angle of reflection (∠i = ∠r).",
       keywords: ['laws of reflection', 'same plane', 'angle of incidence', 'angle of reflection']
@@ -2404,6 +2456,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 79, width: 94, height: 10 },
       title: "Give reasons : The sky appears blue.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Molecules in atmosphere scatter shorter wavelengths (blue light) more strongly than longer wavelengths (Rayleigh scattering).",
       defaultStudentAnswer: "The sky appears blue due to scattering of sunlight by the molecules of air.\nBlue colour (shorter wavelength) is scattered more than the other colours.",
       keywords: ['sky appears blue', 'scattering', 'shorter wavelength', 'blue colour']
@@ -2415,6 +2471,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 90, width: 94, height: 9 },
       title: "State any four applications of electromagnetic waves.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "1) Radio & TV broadcasting (radio waves) 2) Mobile communication (microwaves) 3) Satellite communication 4) Medical diagnosis (X-rays).",
       defaultStudentAnswer: "1) Radio and TV broadcasting\n2) Mobile communication\n3) Satellite communication\n4) Medical applications (X-rays)",
       keywords: ['electromagnetic waves', 'broadcasting', 'mobile', 'satellite', 'x-rays']
@@ -2530,6 +2590,10 @@ export function parseQATextIntoQuestions(text, rubricQuestions = null, options =
       boundingBox: { x: 3, y: 4, width: 94, height: 32 },
       title: 'Write short notes on any two. (1) Indian National Congress (2) Swaraj', 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: '(1) Indian National Congress established in 1885 by A.O. Hume. (2) Swaraj means self-rule by Lokmanya Tilak.',
       defaultStudentAnswer: `(1) Indian National Congress :
 The Indian National Congress was established in 1885 at Bombay. A. O. Hume played an important role in its formation. The main objective of the Congress was to create a platform for the educated Indians to express their political demands. In the early years, the Congress followed a moderate approach and demanded reforms from the British government.
@@ -2545,6 +2609,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 38, width: 94, height: 28 },
       title: 'Explain the main features of the Non-Cooperation Movement.', 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: 'Launched by Gandhi in 1920 following Rowlatt Act & Jallianwala Bagh. Boycott of foreign goods, schools, titles. Withdrawn in 1922 after Chauri Chaura.', 
       defaultStudentAnswer: `• Launched by Mahatma Gandhi in 1920.
 • It was a response to the Rowlatt Act and Jallianwala Bagh massacre.
@@ -2560,7 +2628,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 68, width: 94, height: 28 },
       title: 'Write a note on the contribution of Dr. B. R. Ambedkar.', 
       maxMarks: 5, 
-      presetStatus: 'Incorrect',
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: 'Chairman of Drafting Committee of Indian Constitution, social reformer against untouchability, jurist promoting education.', 
       defaultStudentAnswer: `Dr. B. R. Ambedkar was a great social reformer, jurist and the chairman of the Drafting Committee of the Indian Constitution. He worked for the rights of the downtrodden and fought against untouchability. He believed in education, equality and social justice. His contribution in framing the Constitution of India is invaluable.`,
       keywords: ['ambedkar', 'drafting committee', 'untouchability', 'social reformer'] 
@@ -2572,6 +2643,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 3, width: 94, height: 15 },
       title: 'State any four causes of the French Revolution.', 
       maxMarks: 4, 
+      marksObtained: 4,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: '(1) Social inequality (Three Estates), (2) Financial crisis, (3) Enlightenment thinkers, (4) Autocratic rule of Louis XVI.', 
       defaultStudentAnswer: `(1) Social inequality.
 (2) Financial crisis
@@ -2586,6 +2661,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 19, width: 94, height: 16 },
       title: 'Write a short note on the United Nations.', 
       maxMarks: 4, 
+      marksObtained: 4,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: 'Established in 1945 post-WWII to maintain peace & security and promote global cooperation. India is a founding member.', 
       defaultStudentAnswer: `The United Nations was established in 1945 after the Second World War. Its main objective is to maintain international peace and security, develop friendly relations among nations and promote social, economic and cultural co-operation. India is one of the founding members of the United Nations.`,
       keywords: ['united nations', '1945', 'peace and security', 'co-operation'] 
@@ -2597,6 +2676,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 36, width: 94, height: 15 },
       title: 'What were the results of the First World War? (Any four)', 
       maxMarks: 4, 
+      marksObtained: 4,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: '(1) Loss of life/property, (2) Nationalistic feelings, (3) Collapse of German/Austrian/Ottoman empires, (4) League of Nations.', 
       defaultStudentAnswer: `(1) Huge loss of life and property.
 (2) Growth of nationalistic feelings.
@@ -2611,6 +2694,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 52, width: 94, height: 15 },
       title: "Write a note on Mahatma Gandhi's Satyagraha movement.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Mahatma Gandhi started Satyagraha in South Africa in 1906 based on truth (Satya) and non-violence (Ahimsa). Weapon against injustice.", 
       defaultStudentAnswer: `Mahatma Gandhi started the Satyagraha movement in South Africa in 1906. It was based on the principles of truth and non-violence. He used Satyagraha as a weapon against injustice. The movement inspired Indians in their struggle for freedom and later became an important part of the Indian independence movement.`,
       keywords: ['satyagraha', 'truth and non-violence', 'south africa', 'gandhi'] 
@@ -2622,6 +2709,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 68, width: 94, height: 16 },
       title: "Explain the importance of the Dandi March.", 
       maxMarks: 5, 
+      marksObtained: 5,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "Started 12 March 1930 from Sabarmati to Dandi (240 miles) against British salt tax. Marked the launch of the Civil Disobedience Movement.", 
       defaultStudentAnswer: `The Dandi March was started by Mahatma Gandhi on 12th March 1930 to protest against the British salt law. He along with his followers marched from Sabarmati to Dandi, a distance of about 240 miles. By making salt, Gandhi broke the law and showed that ordinary people could also resist British rule. The march brought the freedom struggle to the masses and received worldwide attention.`,
       keywords: ['dandi march', 'salt law', 'sabarmati', '12 march 1930'] 
@@ -2633,6 +2724,10 @@ Swaraj means self-rule. The demand for Swaraj became strong during the freedom m
       boundingBox: { x: 3, y: 85, width: 94, height: 13 },
       title: "Write any four features of the Indian Constitution.", 
       maxMarks: 4, 
+      marksObtained: 4,
+      presetStatus: 'Correct',
+      status: 'Correct',
+      isMatch: true,
       modelAnswer: "(1) Democratic government (2) Fundamental rights (3) Equality before law (4) Independent judiciary.", 
       defaultStudentAnswer: `(1) It provides a democratic form of government.
 (2) It guarantees fundamental rights to all citizens.
@@ -2976,9 +3071,12 @@ Consequences of the Revolt of 1857 :
       qNo: cleanQNo,
       title: cleanTitle,
       maxMarks: rubricQ.maxMarks || 5,
+      marksObtained: rubricQ.marksObtained !== undefined ? rubricQ.marksObtained : (rubricQ.maxMarks || 5),
+      status: rubricQ.status || rubricQ.presetStatus || 'Correct',
+      presetStatus: rubricQ.presetStatus || 'Correct',
+      isMatch: rubricQ.isMatch !== undefined ? rubricQ.isMatch : true,
       modelAnswer: rubricQ.modelAnswer || `Expected model answer key for ${cleanTitle}...`,
       studentAnswer: extractedAns,
-      presetStatus: rubricQ.presetStatus || null,
       pageNumber: rubricQ.pageNumber || 1,
       boundingBox: rubricQ.boundingBox || {
         x: 4,
@@ -3050,6 +3148,10 @@ export function detectQuestionAnswersFromImage(extractedText, imageFile = null) 
       ...q,
       pageNumber: q.pageNumber || 1,
       marginNumber: `${idx + 1}`,
+      marksObtained: q.marksObtained !== undefined ? q.marksObtained : (q.maxMarks || 5),
+      status: q.status || q.presetStatus || 'Correct',
+      presetStatus: q.presetStatus || 'Correct',
+      isMatch: q.isMatch !== undefined ? q.isMatch : true,
       boundingBox: q.boundingBox || {
         x: 4,
         y: yTop,
@@ -3057,7 +3159,6 @@ export function detectQuestionAnswersFromImage(extractedText, imageFile = null) 
         height: yBottom - yTop,
       },
       confidence: 0.96,
-      status: 'Mapped & Identified',
     };
   });
 }

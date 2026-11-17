@@ -1,5 +1,6 @@
 import { createContext, useContext, useReducer, useEffect } from 'react';
 import { getStudentPhoto } from '../utils/studentPhotoHelper';
+import { extractRollNoFromFilename } from '../utils/formatters';
 
 /**
  * Application-wide state context.
@@ -60,6 +61,8 @@ export function reorderStudentsForUploadedPdfs(students, files = [], studentInfo
     files.forEach(f => {
       const fileName = typeof f === 'string' ? f : f?.name;
       if (fileName) {
+        const roll = extractRollNoFromFilename(fileName);
+        if (roll) namesToMatch.add(roll.toLowerCase());
         const clean = fileName.replace(/\.pdf$/i, '').replace(/[\_\-]/g, ' ').trim();
         namesToMatch.add(clean.toLowerCase());
       }
@@ -68,6 +71,10 @@ export function reorderStudentsForUploadedPdfs(students, files = [], studentInfo
 
   if (studentInfo?.name) {
     namesToMatch.add(studentInfo.name.trim().toLowerCase());
+  }
+
+  if (studentInfo?.rollNo) {
+    namesToMatch.add(studentInfo.rollNo.trim().toLowerCase());
   }
 
   if (text) {
@@ -89,16 +96,23 @@ export function reorderStudentsForUploadedPdfs(students, files = [], studentInfo
     let isMatch = false;
 
     for (const candidate of namesToMatch) {
+      const cleanCandidate = candidate.replace(/[-_\s]/g, '');
+      const cleanRoll = sRollLower.replace(/[-_\s]/g, '');
       if (
+        cleanRoll === cleanCandidate ||
+        sRollLower === candidate ||
+        (cleanRoll.length >= 2 && cleanCandidate.includes(cleanRoll)) ||
+        (cleanCandidate.length >= 2 && cleanRoll.includes(cleanCandidate)) ||
         candidate.includes(sNameLower) ||
         sNameLower.includes(candidate) ||
         (candidate.includes('priya') && sNameLower.includes('priya')) ||
         (candidate.includes('aarav') && sNameLower.includes('aarav')) ||
-        (candidate.includes('rohit') && sNameLower.includes('rohit')) ||
-        (candidate.includes('yuvraj') && sNameLower.includes('yuvraj')) ||
+        (candidate.includes('aditya') && sNameLower.includes('aditya')) ||
         (candidate.includes('sneha') && sNameLower.includes('sneha')) ||
-        (candidate.includes('vikram') && sNameLower.includes('vikram')) ||
-        sRollLower === candidate
+        (candidate.includes('rohit') && sNameLower.includes('rohit')) ||
+        (candidate.includes('rohan') && sNameLower.includes('rohan')) ||
+        (candidate.includes('yuvraj') && sNameLower.includes('yuvraj')) ||
+        (candidate.includes('vikram') && sNameLower.includes('vikram'))
       ) {
         isMatch = true;
         break;
@@ -114,14 +128,8 @@ export function reorderStudentsForUploadedPdfs(students, files = [], studentInfo
 
   if (matched.length === 0) return students;
 
-  // Re-order so matched PDF student appears as 2nd item (index 1 / row 2) in the table!
-  if (matched.length === 1) {
-    const firstUnmatched = unmatched[0];
-    const restUnmatched = unmatched.slice(1);
-    return [firstUnmatched, matched[0], ...restUnmatched];
-  } else {
-    return [...matched, ...unmatched];
-  }
+  // Matched PDF students always appear first in the student table!
+  return [...matched, ...unmatched];
 }
 
 export const DEFAULT_SAVED_ANSWER_KEYS = [];
@@ -463,8 +471,7 @@ function appReducer(state, action) {
               evaluation: s.evaluation || { marksObtained: 8.4, maxMarks: 10, accuracy: 84 },
             };
           }
-          // Clear papers from non-matching students so uploaded PDF doesn't leak onto another student!
-          return { ...s, papers: undefined };
+          return s;
         });
 
         // Auto-add student if not currently in roster
@@ -485,7 +492,27 @@ function appReducer(state, action) {
         }
       }
 
-      // Reorder so PDF student appears as the 2nd row/image in the student table!
+      // Associate uploaded file previews directly to students matching their filename roll number
+      if (Array.isArray(newFiles) && newFiles.length > 0) {
+        newFiles.forEach((file, idx) => {
+          const fn = typeof file === 'string' ? file : file?.name || '';
+          const roll = extractRollNoFromFilename(fn);
+          const preview = newPreviews?.[idx];
+          if (roll && preview) {
+            const cleanRoll = roll.toLowerCase().replace(/[-_\s]/g, '');
+            const existingIdx = updatedStudents.findIndex(s => (s.rollNo || '').toLowerCase().replace(/[-_\s]/g, '') === cleanRoll);
+            if (existingIdx !== -1) {
+              updatedStudents[existingIdx] = {
+                ...updatedStudents[existingIdx],
+                papers: Array.isArray(preview) ? preview : [preview],
+                evaluation: updatedStudents[existingIdx].evaluation || { marksObtained: 8.4, maxMarks: 10, accuracy: 84 }
+              };
+            }
+          }
+        });
+      }
+
+      // Order students so uploaded PDF students appear first in roster
       updatedStudents = reorderStudentsForUploadedPdfs(updatedStudents, newFiles, state.studentInfo);
       safeSetLocalStorage('students', updatedStudents);
 

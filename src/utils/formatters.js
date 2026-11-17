@@ -97,3 +97,46 @@ export function getScoreBgColor(percentage) {
   if (percentage >= 60) return 'bg-amber-500';
   return 'bg-red-500';
 }
+
+/**
+ * Extracts student roll number from a filename.
+ * Handles patterns such as:
+ * - "CS105.pdf", "CS106.pdf", "cs105.png" -> "CS105", "CS106"
+ * - "CS-105.pdf", "CS_106.pdf" -> "CS105", "CS106"
+ * - "Roll_105.pdf", "Roll-106.pdf", "Roll 105.pdf" -> "CS105", "CS106"
+ * - "01.pdf", "02.pdf" -> "01", "02"
+ * - "105.pdf" -> "CS105"
+ * @param {string} filename
+ * @returns {string|null} Normalized roll number e.g. "CS105" or "01"
+ */
+export function extractRollNoFromFilename(filename) {
+  if (!filename || typeof filename !== 'string') return null;
+  const clean = filename.split(/[/\\]/).pop().replace(/\.[^/.]+$/, '').trim();
+
+  // 1. Matches pattern like "CS105", "IT102", "CS-105", "CS_106"
+  const prefixMatch = clean.match(/\b([A-Za-z]{2,4})[-_\s]?(\d{1,4})\b/);
+  if (prefixMatch) {
+    return `${prefixMatch[1].toUpperCase()}${prefixMatch[2]}`;
+  }
+
+  // 2. Matches "Roll_105", "Roll-105", "Roll 105", "R-105"
+  const rollPrefixMatch = clean.match(/(?:roll|r)[-_\s]*(?:no)?[-_\s]*(\d{1,4})\b/i);
+  if (rollPrefixMatch) {
+    return `CS${rollPrefixMatch[1]}`;
+  }
+
+  // 3. Matches pure numbers like "01", "02", "105"
+  const numMatch = clean.match(/^\s*(\d{1,4})\s*$/);
+  if (numMatch) {
+    const num = numMatch[1];
+    return num.length <= 2 ? num : `CS${num}`;
+  }
+
+  // 4. Any alphanumeric sequence starting with letters followed by digits e.g. "S105"
+  const alphaNumMatch = clean.match(/\b([A-Za-z]+\d+)\b/);
+  if (alphaNumMatch) {
+    return alphaNumMatch[1].toUpperCase();
+  }
+
+  return null;
+}
